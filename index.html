@@ -678,7 +678,32 @@ function addCustomFactor() {
 // =====================================================================
 // THE "SAY IT OUT LOUD" SHORTCUT
 // =====================================================================
+// Pick the easiest thing to break:
+//   • ×50 → always "half of 100" (works for any number)
+//   • the other number ends in 9 (or 18, 28…) → round IT up, keep the table number:  12 × 19 = 12 × 20 − 12
+//   • the other number is a round ten → multiply, add a zero:                        12 × 20 = 24 → 240
+//   • the other number is 11+ → split IT, keep the table number:                     12 × 14 = 120 + 48
+//   • the other number is 1–10 → use the table's own trick:                          12 × 7 = 70 + 14
 function shortcutSteps(f, n) {
+  const p = f * n;
+  const B = x => `<b>${fmt(x)}</b>`;
+  if (f === 50 || f < 10) return factorRuleSteps(f, n);
+  const u = n % 10;
+  if (n % 10 === 0 && n > 10)
+    return [`${n} = ${n / 10} × 10 → keep ${f}`, `${f} × ${n / 10} = ${fmt(f * n / 10)}`, `add one zero → ${B(p)}`];
+  if (u === 9 || (u === 8 && n > 10)) {
+    const up = n + (10 - u), k = 10 - u;
+    return [`${n} is almost ${up} → round ${n} up, keep ${f}`, `${f} × ${up} = ${fmt(f * up)}`,
+            `take back ${k === 1 ? "one" : k} × ${f} = ${fmt(k * f)}`, `${fmt(f * up)} − ${fmt(k * f)} = ${B(p)}`];
+  }
+  if (n <= 10) return factorRuleSteps(f, n);
+  if (f === 25 && n % 4 === 0) return factorRuleSteps(f, n);        // clean quarter: 25 × 16 = 16 ÷ 4 = 4 → 400
+  const t = n - u;
+  return [`${n} = ${t} + ${u} → keep ${f}, break ${n}`, `${f} × ${t} = ${fmt(f * t)}`, `${f} × ${u} = ${fmt(f * u)}`, `${fmt(f * t)} + ${fmt(f * u)} = ${B(p)}`];
+}
+
+// The table's own trick (best when the other number is 1–10)
+function factorRuleSteps(f, n) {
   const p = f * n;
   const B = x => `<b>${fmt(x)}</b>`;
   switch (f) {
