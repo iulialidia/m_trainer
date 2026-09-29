@@ -32,6 +32,8 @@
   #result { min-height: 28px; font-size: 18px; font-weight: bold; margin-top: 12px; }
   .ok { color: var(--green); } .bad { color: var(--red); } .slow { color: var(--amber); }
   #shortcut { display: none; text-align: left; background: #f3f7f5; border-left: 4px solid var(--accent); padding: 10px 12px; margin-top: 10px; border-radius: 4px; line-height: 1.7; }
+  #coach { display: none; text-align: left; background: #fff8e6; border-left: 4px solid var(--amber); padding: 8px 12px; margin: 0 auto 12px; max-width: 420px; border-radius: 4px; line-height: 1.7; font-size: 15px; }
+  .how { color: var(--muted); font-size: 12px; }
   #nextHint { color: var(--muted); font-size: 13px; margin-top: 8px; display: none; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 10px; }
   th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); }
@@ -173,6 +175,7 @@
   <div class="card" id="play" style="display:none">
     <div id="status"><span id="progress"></span><span id="timer">0.0s</span></div>
     <div id="question"></div>
+    <div id="coach"></div>
     <input type="text" id="answer" autocomplete="off" inputmode="decimal" enterkeyhint="go">
     <button id="checkBtn">Check</button>
     <div class="row" id="unitBtns" style="justify-content:center;display:none">
@@ -398,12 +401,12 @@ function ruleLine(f) {
 }
 function renderSheet(f) {
   let cells = "";
-  for (let n = 1; n <= LEARN_MAX; n++) cells += `<div>${f} × ${n} = <b>${fmt(f * n)}</b> ${["", "·", "✓", "✅"][factLevel(f, n)]}</div>`;
+  for (let n = 1; n <= LEARN_MAX; n++) cells += `<div>${f} × ${n} = <b>${fmt(f * n)}</b> ${["", "·", "✓", "✅"][factLevel(f, n)]}<br><span class="how">${howShort(f, n)}</span></div>`;
   const ex = shortcutSteps(f, 7).join(" → ");
   $("sheet").innerHTML = `<b>How to think about ×${f}:</b> ${ruleLine(f)}<br><span class="hint">Example, out loud: ${ex}</span>` +
     `<div class="sheetgrid">${cells}</div>` +
     `<p class="hint">· answered right &nbsp; ✓ right and on time &nbsp; ✅ mastered (on time on two different days)</p>` +
-    `<p class="hint">Tip: read it once out loud, cover it, then start Step 1. Look for the pattern (each step adds ${f}), don't memorise blindly.</p>`;
+    `<p class="hint">The grey line under each fact is the quick way to get there. Tip: read the list once out loud, <b>method first, then the answer</b> ("240 minus 12… 228"), then start Step 1. In Step 1 the method appears under every question, so you practise the thinking, not just the result.</p>`;
 }
 function renderMastery() {
   const facs = [...new Set([...LEARN_ORDER, ...allFactorValues()])];
@@ -689,7 +692,7 @@ function shortcutSteps(f, n) {
   const B = x => `<b>${fmt(x)}</b>`;
   if (f === 50 || f < 10) return factorRuleSteps(f, n);
   const u = n % 10;
-  if (n % 10 === 0 && n > 10)
+  if (n % 10 === 0 && n >= 10)
     return [`${n} = ${n / 10} × 10 → keep ${f}`, `${f} × ${n / 10} = ${fmt(f * n / 10)}`, `add one zero → ${B(p)}`];
   if (u === 9 || (u === 8 && n > 10)) {
     const up = n + (10 - u), k = 10 - u;
@@ -700,6 +703,25 @@ function shortcutSteps(f, n) {
   if (f === 25 && n % 4 === 0) return factorRuleSteps(f, n);        // clean quarter: 25 × 16 = 16 ÷ 4 = 4 → 400
   const t = n - u;
   return [`${n} = ${t} + ${u} → keep ${f}, break ${n}`, `${f} × ${t} = ${fmt(f * t)}`, `${f} × ${u} = ${fmt(f * u)}`, `${fmt(f * t)} + ${fmt(f * u)} = ${B(p)}`];
+}
+
+// Short version of the method, for the cheat sheet: "240 − 12", "120 + 48", "½ of 1,900"
+function howShort(f, n) {
+  const st = shortcutSteps(f, n).map(s => s.replace(/<[^>]+>/g, ""));
+  const last = st[st.length - 1];
+  if (last.startsWith("half of that")) return `½ of ${fmt(100 * n)}`;
+  if (last.startsWith("add one zero")) return `${st[st.length - 2].split(" = ").pop()} → add a 0`;
+  if (last.startsWith("add two zeros")) return `${st[st.length - 2].split(" = ").pop()} → add 00`;
+  if (last.startsWith("add ")) return `${fmt(10 * n)} + ${n}`;                    // ×11
+  if (f === 25 && st[0].startsWith("25 is a quarter")) return `${n} ÷ 4 = ${fmt(n / 4)} → × 100`;
+  if (last.includes(" = ")) return last.slice(0, last.lastIndexOf(" = "));
+  return "";
+}
+// Step 1 coach: the full method, with the final answer hidden
+function coachLines(q) {
+  const steps = shortcutSteps(q.f, q.n);
+  steps[steps.length - 1] = steps[steps.length - 1].replace(/<b>[^<]*<\/b>\s*$/, "<b>?</b>");
+  return "🧭 <b>Think it through:</b><br>" + steps.map(s => "→ " + s).join("<br>");
 }
 
 // The table's own trick (best when the other number is 1–10)
@@ -838,7 +860,12 @@ function nextQuestion() {
   } else {
     $("progress").textContent = `Question ${game.results.length + 1} of ${game.s.total}` + (q.fromWeak ? "  •  from your notebook" : "");
   }
-  $("hintBtn").style.display = learn && game.s.stage === "order" ? "" : "none";
+  // Step 1: the method is shown under every question (answer hidden). Step 2: only on request.
+  const step1 = learn && game.s.stage === "order";
+  $("coach").innerHTML = step1 ? coachLines(q) : "";
+  $("coach").style.display = step1 ? "block" : "none";
+  $("hintBtn").style.display = learn && !step1 ? "" : "none";
+  $("hintBtn").textContent = "💡 Show the method (this one won't count as on time)";
   $("result").textContent = "";
   $("result").className = "";
   $("shortcut").style.display = "none";
@@ -936,6 +963,7 @@ function submit() {
     if (game.s.showShortcut) {
       $("shortcut").innerHTML = buildShortcut(q);
       $("shortcut").style.display = "block";
+      $("coach").style.display = "none";   // the full version (with answer) replaces the coach
     }
     $("nextHint").style.display = "block";
     game.waitingForNext = true;
@@ -1133,8 +1161,8 @@ window.onload = function () {
   $("hintBtn").addEventListener("click", () => {
     if (!game || game.locked) return;
     game.current.usedHint = true;
-    $("shortcut").innerHTML = buildShortcut(game.current);
-    $("shortcut").style.display = "block";
+    $("coach").innerHTML = coachLines(game.current);
+    $("coach").style.display = "block";
     $("answer").focus();
   });
 
