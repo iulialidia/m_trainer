@@ -135,7 +135,7 @@
       <h2>2. Tables to practise</h2>
       <div class="row">
         <label><input type="checkbox" id="allFactors"> <b>All</b></label>
-        <button class="secondary" id="knownBtn">Only what I know</button>
+        <button class="secondary" id="knownBtn">Only ✅ known tables</button>
       </div>
       <div class="row" id="factorList"></div>
       <div class="row">
@@ -424,7 +424,15 @@ function renderMastery() {
   sel.innerHTML = facs.map(f => `<option value="${f}">×${f} — ${tableStatus(f) === "known" ? "known" : tableStatus(f) === "learning" ? "learning " + Math.round(100 * tableProgress(f)) + "%" : "new"}</option>`).join("");
   sel.value = cur && facs.includes(+cur) ? cur : String(sug ? sug.f : facs[0]);
 }
-function knownFactors() { return allFactorValues().filter(f => tableStatus(f) !== "new"); }
+// Normal & weak-spot rounds use ONLY tables that are ✅ known. A table you're learning joins automatically once it's known.
+function knownFactors() { return allFactorValues().filter(f => tableStatus(f) === "known"); }
+// Clean the notebook of mistakes from tables that aren't known yet (they're handled by Learn mode instead)
+function pruneWeak() {
+  let removed = 0;
+  for (const k in store.weak) if (tableStatus(store.weak[k].f) !== "known") { delete store.weak[k]; removed++; }
+  if (removed) saveStore();
+  return removed;
+}
 function syncModeUI() {
   const m = document.querySelector('input[name="mode"]:checked').value;
   $("learnOpts").style.display = m === "learn" ? "" : "none";
@@ -721,7 +729,7 @@ function weightedPick(list) {
 }
 
 function pickQuestion(s) {
-  const weakList = Object.values(store.weak).filter(w => s.mode === "review" || s.factors.includes(w.f));
+  const weakList = Object.values(store.weak).filter(w => s.mode === "review" ? tableStatus(w.f) === "known" : s.factors.includes(w.f));
   let f, n, fromWeak = false;
   for (let tries = 0; tries < 8; tries++) {
     fromWeak = s.mode === "review" ? true : (weakList.length > 0 && Math.random() < WEAK_SHARE_NORMAL);
@@ -1084,7 +1092,9 @@ window.onload = function () {
   renderLog();
 
   // Learning mode + mastery
-  renderFactors(knownFactors());          // normal rounds start with the tables you know (and the one you're learning)
+  pruneWeak();
+  renderWeak();
+  renderFactors(knownFactors());          // normal rounds start with the ✅ known tables only
   renderMastery();
   document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener("change", syncModeUI));
   $("learnFactor").addEventListener("change", () => { if ($("sheet").style.display !== "none") renderSheet(+$("learnFactor").value); });
