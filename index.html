@@ -60,6 +60,13 @@
   .badge.locked { opacity: .35; filter: grayscale(1); }
   .celebrate { background: #fff8e6; border: 1px solid #f0d58c; border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
   details summary { cursor: pointer; font-weight: bold; }
+  #plan { margin-top: 10px; }
+  .task { display: grid; grid-template-columns: 26px 1fr; gap: 6px; align-items: start; padding: 7px 8px; border-radius: 8px; margin: 4px 0; font-size: 14px; background: #fff; border: 1px solid var(--line); }
+  .task .ck { font-size: 18px; line-height: 1.1; }
+  .task.done { opacity: .6; } .task.done .t { text-decoration: line-through; }
+  .task.next { border: 2px solid var(--accent); background: #f1f8f4; }
+  .task .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .task .mini { height: 5px; background: #e6ece9; border-radius: 3px; margin-top: 4px; overflow: hidden; } .task .mini > div { height: 100%; background: var(--accent); }
   .mrow { display: grid; grid-template-columns: 44px 1fr 92px; gap: 8px; align-items: center; margin: 6px 0; font-size: 14px; }
   .mrow .bar { margin: 0; }
   .sheetgrid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(10, auto); grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 15px; margin-top: 8px; font-variant-numeric: tabular-nums; }
@@ -87,6 +94,8 @@
 
     <div class="barlbl"><span><b>Today's workout</b></span><span id="goalTxt"></span></div>
     <div class="bar"><div id="goalBar"></div></div>
+    <div id="plan"></div>
+    <button id="nextBtn" style="width:100%;margin-top:8px;font-size:17px;padding:11px"></button>
 
     <div class="barlbl" style="margin-top:10px"><span id="levelTxt"></span><span id="xpTxt"></span></div>
     <div class="bar"><div id="xpBar"></div></div>
@@ -520,6 +529,93 @@ function renderMotivation() {
   $("quote").textContent = "“" + quoteOfDay() + "”";
   $("phase").textContent = phaseText(a, iv);
   renderBadges();
+  if ($("learnFactor").options.length) renderPlan();   // needs the tables list, built on load
+}
+
+// =====================================================================
+// TODAY'S PLAN — the app decides what's next, in this order:
+//   1) Learn (fresh mind first)  2) Normal rounds on known tables  3) Weak spots clean-up
+// =====================================================================
+function step1Passed(f) {
+  return (store.step1Passed && store.step1Passed[f]) ||
+    store.sessions.some(s => s.mode === "learn" && s.learnFactor === f && s.stage === "order" && s.n >= LEARN_MAX &&
+      (s.firstPct != null ? s.firstPct >= 90 : s.acc >= 90));
+}
+function buildPlan() {
+  const today = dayKey(new Date());
+  const todays = store.sessions.filter(s => dayKey(new Date(s.date)) === today);
+  const qBy = mode => todays.filter(s => s.mode === mode).reduce((a, s) => a + s.n, 0);
+  const goal = +store.settings.dailyGoal || 100;
+  const tasks = [];
+
+  // 1) LEARN
+  const sug = suggestNext();
+  const learnedSomethingToday = todays.some(s => s.mode === "learn");
+  if (sug) {
+    const f = sug.f;
+    const fin = s => s.mode === "learn" && s.learnFactor === f && (s.finished != null ? s.finished : s.n >= LEARN_MAX);
+    const doneStep2 = todays.some(s => fin(s) && s.stage === "shuffle");
+    const doneStep1 = todays.some(s => fin(s) && s.stage === "order");
+    let t;
+    if (!sug.busy && learnedSomethingToday)
+      t = { done: true, title: `Learn: start ×${f} tomorrow`, sub: "You finished a table today. One table at a time, so the next one starts tomorrow." };
+    else if (doneStep2)
+      t = { done: true, title: `Learn ×${f}: Step 2 done`, sub: "One shuffled round a day is enough. It locks in tomorrow." };
+    else if (step1Passed(f))
+      t = { done: false, title: `Learn ×${f}: Step 2 (shuffled)`, sub: `~3 min · table progress ${Math.round(100 * tableProgress(f))}%`, run: { mode: "learn", f, stage: "shuffle" }, btn: `Learn ×${f}, Step 2` };
+    else if (doneStep1)
+      t = { done: true, title: `Learn ×${f}: Step 1 done`, sub: "Not 18/20 on the first try yet, so repeat Step 1 tomorrow. Read the cheat sheet once tonight." };
+    else
+      t = { done: false, title: `Learn ×${f}: ${sug.busy ? "" : "new table! "}Step 1 (in order)`, sub: `~3 min · read the 📄 cheat sheet first, hints allowed`, run: { mode: "learn", f, stage: "order" }, btn: `Learn ×${f}, Step 1` };
+    tasks.push(t);
+  }
+
+  // 3) WEAK SPOTS (computed before drill so the drill target leaves room for it)
+  const weakN = Object.keys(store.weak).length;
+  const reviewDone = todays.some(s => s.mode === "review");
+  const weakTask = reviewDone ? { done: true, title: "Weak spots: cleaned up", sub: `${weakN} left in your notebook` }
+    : weakN === 0 ? { done: true, title: "Weak spots: notebook empty 🎉", sub: "Nothing to fix today" }
+    : { done: false, title: `Weak spots: 1 round`, sub: `~2 min · ${weakN} in your notebook`, run: { mode: "review" }, btn: "Weak spots round" };
+
+  // 2) DRILL
+  const reserved = (sug && !tasks[0].done ? LEARN_MAX : qBy("learn")) + (weakTask.done ? qBy("review") : 20);
+  const target = Math.max(20, Math.ceil((goal - reserved) / 20) * 20);
+  const qN = qBy("normal");
+  const known = knownFactors().map(f => "×" + f).join(", ");
+  tasks.push(qN >= target
+    ? { done: true, title: `Normal rounds: ${qN}/${target} questions`, sub: `Tables: ${known}` }
+    : { done: false, title: `Normal rounds: ${qN}/${target} questions`, sub: `~${Math.ceil((target - qN) / 20) * 3} min · rounds of 20 · tables: ${known}`, pct: qN / target, run: { mode: "normal" }, btn: `Normal round (${Math.ceil((target - qN) / 20)} left)` });
+  tasks.push(weakTask);
+  return tasks;
+}
+function renderPlan() {
+  const tasks = buildPlan();
+  const next = tasks.find(t => !t.done);
+  const isRest = new Date().getDay() === +store.settings.restDay;
+  const anyToday = store.sessions.some(s => dayKey(new Date(s.date)) === dayKey(new Date()));
+  let head = isRest && !anyToday ? `<p class="hint">😴 Rest day: the plan is optional today and your streak is safe.</p>` : "";
+  $("plan").innerHTML = head + tasks.map((t, i) => `
+    <div class="task ${t.done ? "done" : ""} ${t === next ? "next" : ""}">
+      <div class="ck">${t.done ? "✅" : t === next ? "▶️" : "⬜"}</div>
+      <div><div class="t"><b>${i + 1}.</b> ${t.title}</div><div class="sub">${t.sub || ""}</div>
+      ${t.pct != null ? `<div class="mini"><div style="width:${Math.round(100 * t.pct)}%"></div></div>` : ""}</div>
+    </div>`).join("");
+  const btn = $("nextBtn");
+  if (next) { btn.textContent = "▶ Start: " + next.btn; btn.onclick = () => runTask(next.run); btn.className = ""; }
+  else { btn.textContent = "🎉 Today's workout is done! (tap for a bonus round)"; btn.onclick = () => runTask({ mode: "normal" }); btn.className = "secondary"; }
+}
+function runTask(run) {
+  document.querySelector(`input[name="mode"][value="${run.mode}"]`).checked = true;
+  if (run.mode === "learn") {
+    renderMastery();
+    $("learnFactor").value = String(run.f);
+    document.querySelector(`input[name="stage"][value="${run.stage}"]`).checked = true;
+  } else if (run.mode === "normal") {
+    renderFactors(knownFactors());
+    $("roundSize").value = 20;
+  }
+  syncModeUI();
+  startGame();
 }
 
 function renderBadges() {
@@ -889,6 +985,8 @@ function finishRound() {
     const firstPct = first.length ? Math.round(100 * firstOk / first.length) : 0;
     const finished = game.queue.length === 0;
     if (finished && game.s.stage === "order") { store.step1 = store.step1 || {}; store.step1[f] = true; }
+    store.sessions[0].firstPct = firstPct; store.sessions[0].finished = finished;
+    if (finished && game.s.stage === "order" && firstPct >= 90) { store.step1Passed = store.step1Passed || {}; store.step1Passed[f] = true; }
     const mNow = Math.round(100 * tableMastery(f)), mBefore = Math.round(100 * game.masteryBefore);
     const pNow = tableStatus(f) === "known" ? 100 : Math.round(100 * tableProgress(f));
     let slowCount = 0; for (let n = 1; n <= LEARN_MAX; n++) if (factLevel(f, n) === 1) slowCount++;
@@ -926,6 +1024,13 @@ function finishRound() {
     ${game.graduated.length ? `<p>🎓 Graduated from your notebook: ${game.graduated.join(", ")}</p>` : ""}
     ${learnHtml || `<p class="${ready ? "ok" : "slow"}"><b>${ready ? "Interview-ready pace on this set. Raise the difficulty (wider range or zeros)." : "Goal: at least 90% right AND at least 80% under your target time. Next: a 'Weak spots only' round."}</b></p>`}`;
   $("summary").insertAdjacentHTML("beforeend", `<p id="roundQuote" style="font-style:italic;color:#555">“${quoteOfDay(game.results.length + store.sessions.length)}”</p>`);
+  renderPlan();
+  const nb = document.createElement("button");
+  nb.textContent = $("nextBtn").textContent.replace("▶ Start:", "▶ Next:");
+  nb.className = $("nextBtn").className;
+  nb.style.cssText = "width:100%;font-size:17px;padding:11px";
+  nb.onclick = $("nextBtn").onclick;
+  $("summary").appendChild(nb);
   $("summary").style.display = "block";
   $("today").style.display = "";
   $("summary").scrollIntoView({ behavior: "smooth", block: "start" });
