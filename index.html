@@ -60,6 +60,10 @@
   .badge.locked { opacity: .35; filter: grayscale(1); }
   .celebrate { background: #fff8e6; border: 1px solid #f0d58c; border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
   details summary { cursor: pointer; font-weight: bold; }
+  .mrow { display: grid; grid-template-columns: 44px 1fr 92px; gap: 8px; align-items: center; margin: 6px 0; font-size: 14px; }
+  .mrow .bar { margin: 0; }
+  .sheetgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 4px 12px; font-size: 15px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  #sheet { background: #f3f7f5; border-left: 4px solid var(--accent); border-radius: 4px; padding: 10px 12px; margin-top: 8px; }
   @media (max-width: 480px) {
     #question { font-size: 32px; }
     #answer { width: 100%; max-width: 260px; }
@@ -96,31 +100,64 @@
 
   <!-- ============ SETUP ============ -->
   <div class="card" id="setup">
-    <h2>1. What to practise</h2>
-    <div class="row"><label><input type="checkbox" id="allFactors"> <b>All factors</b></label></div>
-    <div class="row" id="factorList"></div>
+    <h2>1. Type of round</h2>
     <div class="row">
-      <input type="number" id="customFactor" placeholder="e.g. 18">
-      <button class="secondary" id="addFactorBtn">+ Add factor</button>
-      <span class="hint">Add any number you want to drill (11, 18, 35, 45…)</span>
-    </div>
-    <div class="row">
-      <label>Multiply by numbers from <input type="number" id="minMult" value="1" min="1"></label>
-      <label>to <input type="number" id="maxMult" value="15" min="1"></label>
+      <label><input type="radio" name="mode" value="learn"> 📘 Learn a new table</label>
+      <label><input type="radio" name="mode" value="normal" checked> 🏃 Normal round</label>
+      <label><input type="radio" name="mode" value="review"> 📓 Weak spots only (<span id="weakCount">0</span> saved)</label>
     </div>
 
-    <h2>2. How to practise</h2>
+    <!-- LEARN options -->
+    <div id="learnOpts" style="display:none">
+      <div class="row">
+        <label>Table to learn <select id="learnFactor"></select></label>
+        <button class="secondary" id="sheetBtn">📄 Show cheat sheet</button>
+      </div>
+      <div class="row">
+        <label><input type="radio" name="stage" value="order" checked> Step 1 · In order (×1 → ×20), no timer, hints allowed</label>
+        <label><input type="radio" name="stage" value="shuffle"> Step 2 · Shuffled, timer on</label>
+      </div>
+      <p class="hint">Every mistake comes back later in the same round, so a round ends only when you've answered all 20 correctly.</p>
+      <div id="sheet" style="display:none"></div>
+    </div>
+
+    <!-- NORMAL / REVIEW options -->
+    <div id="drillOpts">
+      <h2>2. Tables to practise</h2>
+      <div class="row">
+        <label><input type="checkbox" id="allFactors"> <b>All</b></label>
+        <button class="secondary" id="knownBtn">Only what I know</button>
+      </div>
+      <div class="row" id="factorList"></div>
+      <div class="row">
+        <input type="number" id="customFactor" placeholder="e.g. 18">
+        <button class="secondary" id="addFactorBtn">+ Add factor</button>
+        <span class="hint">Add any number you want to drill (11, 18, 35, 45…)</span>
+      </div>
+      <div class="row">
+        <label>Multiply by numbers from <input type="number" id="minMult" value="1" min="1"></label>
+        <label>to <input type="number" id="maxMult" value="20" min="1"></label>
+      </div>
+      <div class="row">
+        <label>Questions per round <input type="number" id="roundSize" value="20" min="1"></label>
+      </div>
+      <div class="row"><label><input type="checkbox" id="zeros"> Consulting zeros (e.g. 1,500 × 40,000) — answers like 60m, 60,000,000 or 60000000 all work</label></div>
+    </div>
+
+    <h2>3. Pace</h2>
     <div class="row">
-      <label>Questions per round <input type="number" id="roundSize" value="20" min="1"></label>
       <label>Target seconds per answer <input type="number" id="target" value="5" min="1" step="0.5"></label>
     </div>
-    <div class="row"><label><input type="checkbox" id="zeros"> Consulting zeros (e.g. 1,500 × 40,000) — answers like 60m, 60,000,000 or 60000000 all work</label></div>
     <div class="row"><label><input type="checkbox" id="showShortcut" checked> After a miss or a slow answer, show the shortcut to say out loud</label></div>
-    <div class="row">
-      <label><input type="radio" name="mode" value="normal" checked> Normal round</label>
-      <label><input type="radio" name="mode" value="review"> Weak spots only (<span id="weakCount">0</span> saved)</label>
-    </div>
     <div class="row"><button id="startBtn">Start round</button></div>
+  </div>
+
+  <!-- ============ MASTERY ============ -->
+  <div class="card" id="masteryCard">
+    <h2>My tables</h2>
+    <p class="hint">A fact (like 15 × 7) counts as <b>mastered</b> once you get it right within your target time on <b>two different days</b> in a row, with no mistakes in between (Step 1 doesn't count). Spacing it out is what makes it stick. A table is ✅ known at 90% of its 20 facts.</p>
+    <div id="mastery"></div>
+    <div id="nextSuggest" class="celebrate" style="display:none"></div>
   </div>
 
   <!-- ============ PLAY ============ -->
@@ -139,6 +176,7 @@
     <div id="result"></div>
     <div id="shortcut"></div>
     <div id="nextHint">Say the shortcut out loud, then press <b>Enter</b> for the next question</div>
+    <div class="row" style="justify-content:center"><button class="secondary" id="hintBtn" style="display:none">💡 Hint</button></div>
     <div class="row" style="justify-content:center;margin-top:14px">
       <button class="secondary" id="stopBtn">End round</button>
     </div>
@@ -218,7 +256,15 @@ function loadStore() {
   if (!s.badges) s.badges = {};
   if (!s.totalGraduated) s.totalGraduated = 0;
   if (!s.settings) s.settings = {};
-  s.settings = Object.assign({ applyDate: "2026-11-30", interviewDate: "2027-01-29", dailyGoal: 40, restDay: 6 }, s.settings);
+  s.settings = Object.assign({ applyDate: "2026-11-30", interviewDate: "2027-01-29", dailyGoal: 100, restDay: 6 }, s.settings);
+  // v4: daily goal raised to 100 (~15-20 min), learning mode
+  if (!s.v || s.v < 4) {
+    if (s.settings.dailyGoal === 40) s.settings.dailyGoal = 100;
+    s.v = 4;
+  }
+  if (!s.facts) s.facts = {};                 // "15x7": { right, wrong, streak }  (streak = right & on-time in a row)
+  if (!s.knownTables) s.knownTables = { 12: true };   // tables marked as already known (you learned ×12 up to 20)
+  if (!s.learning) s.learning = {};           // tables you've started learning
   return s;
 }
 function saveStore() {
@@ -272,11 +318,90 @@ function streakInfo() {
   return { cur, best: Math.max(best, cur) };
 }
 
-// Consulting career ladder — roughly: 2 rounds a day, most days, gets you to Partner around interview time
+// Consulting career ladder — ~100 questions a day (~1,000 XP), most days, gets you to Partner around interview time
 const LEVELS = [
-  [0, "Intern"], [1000, "Analyst"], [3000, "Associate"], [7000, "Consultant"],
-  [13000, "Senior Consultant"], [21000, "Project Leader"], [30000, "Principal"], [42000, "Partner"]
+  [0, "Intern"], [2500, "Analyst"], [7000, "Associate"], [15000, "Consultant"],
+  [28000, "Senior Consultant"], [45000, "Project Leader"], [68000, "Principal"], [95000, "Partner"]
 ];
+
+// =====================================================================
+// LEARNING & MASTERY
+// =====================================================================
+const LEARN_MAX = 20;                               // a table = ×1 … ×20
+const LEARN_ORDER = [12, 50, 25, 15, 30, 75];       // suggested order: easiest patterns first
+const MASTER_STREAK = 2;
+
+function factMastered(f, n) { const x = store.facts[f + "x" + n]; return !!x && x.streak >= MASTER_STREAK; }
+function tableMastery(f) {
+  let m = 0; for (let n = 1; n <= LEARN_MAX; n++) if (factMastered(f, n)) m++;
+  return m / LEARN_MAX;
+}
+function tableStatus(f) {
+  if (store.knownTables[f] || tableMastery(f) >= 0.9) return "known";
+  if (store.learning[f] || tableMastery(f) > 0) return "learning";
+  return "new";
+}
+function updateFact(q, rightOnTime, isRight) {
+  const k = q.f + "x" + q.n;
+  const x = store.facts[k] || (store.facts[k] = { right: 0, wrong: 0, streak: 0 });
+  if (isRight) x.right++; else x.wrong++;
+  const today = dayKey(new Date());
+  if (!rightOnTime) { x.streak = 0; x.lastDay = null; }
+  else if (x.lastDay !== today) { x.streak++; x.lastDay = today; }  // max one step per day → needs two separate days
+}
+function suggestNext() {
+  const order = [...LEARN_ORDER, ...allFactorValues().filter(f => !LEARN_ORDER.includes(f))];
+  const learningNow = order.find(f => tableStatus(f) === "learning");
+  if (learningNow) return { f: learningNow, busy: true };
+  const next = order.find(f => tableStatus(f) === "new");
+  return next ? { f: next, busy: false } : null;
+}
+function ruleLine(f) {
+  const rules = {
+    12: "12 = 10 + 2 → ten times the number, plus double it",
+    15: "15 = 10 + 5 → ten times the number, plus half of that",
+    25: "25 = a quarter of 100 → divide by 4, then × 100",
+    30: "30 = 3 × 10 → triple it, then add a zero",
+    50: "50 = half of 100 → × 100, then halve it",
+    75: "75 = 100 − 25 → × 100, then take away a quarter of that",
+    11: "11 = 10 + 1 → ten times the number, plus the number"
+  };
+  return rules[f] || shortcutSteps(f, 7)[0].replace(/<[^>]+>/g, "");
+}
+function renderSheet(f) {
+  let cells = "";
+  for (let n = 1; n <= LEARN_MAX; n++) cells += `<div>${f} × ${n} = <b>${fmt(f * n)}</b>${factMastered(f, n) ? " ✓" : ""}</div>`;
+  const ex = shortcutSteps(f, 7).join(" → ");
+  $("sheet").innerHTML = `<b>How to think about ×${f}:</b> ${ruleLine(f)}<br><span class="hint">Example, out loud: ${ex}</span>` +
+    `<div class="sheetgrid">${cells}</div>` +
+    `<p class="hint">Tip: read it once out loud, cover it, then start Step 1. Look for the pattern (each step adds ${f}), don't memorise blindly.</p>`;
+}
+function renderMastery() {
+  const facs = [...new Set([...LEARN_ORDER, ...allFactorValues()])];
+  $("mastery").innerHTML = facs.map(f => {
+    const st = tableStatus(f), pct = Math.round(100 * tableMastery(f));
+    const tag = st === "known" ? "✅ known" : st === "learning" ? `📘 ${pct}%` : "🔒 new";
+    return `<div class="mrow"><b>×${f}</b><div class="bar"><div style="width:${st === "known" && pct < 90 ? 100 : pct}%;${st === "learning" ? "background:#8fc5a8" : ""}"></div></div><span>${tag}</span></div>`;
+  }).join("");
+  const sug = suggestNext(), box = $("nextSuggest");
+  if (sug) {
+    box.style.display = "block";
+    box.innerHTML = sug.busy
+      ? `📘 You're learning <b>×${sug.f}</b>. Keep going until it's ✅ known (90%) before starting the next table. One table at a time, done properly.`
+      : `👉 Ready for a new table? Next suggested: <b>×${sug.f}</b> (${ruleLine(sug.f)}). Choose "📘 Learn a new table".`;
+  } else box.style.display = "none";
+  // learn dropdown
+  const sel = $("learnFactor"), cur = sel.value;
+  sel.innerHTML = facs.map(f => `<option value="${f}">×${f} — ${tableStatus(f) === "known" ? "known" : tableStatus(f) === "learning" ? "learning " + Math.round(100 * tableMastery(f)) + "%" : "new"}</option>`).join("");
+  sel.value = cur && facs.includes(+cur) ? cur : String(sug ? sug.f : facs[0]);
+}
+function knownFactors() { return allFactorValues().filter(f => tableStatus(f) !== "new"); }
+function syncModeUI() {
+  const m = document.querySelector('input[name="mode"]:checked').value;
+  $("learnOpts").style.display = m === "learn" ? "" : "none";
+  $("drillOpts").style.display = m === "learn" ? "none" : "";
+  if (m === "learn" && $("sheet").style.display !== "none") renderSheet(+$("learnFactor").value);
+}
 function levelInfo(xp) {
   let i = 0; while (i + 1 < LEVELS.length && xp >= LEVELS[i + 1][0]) i++;
   const next = LEVELS[i + 1];
@@ -406,7 +531,8 @@ function renderFactors(keepChecked) {
   const checked = new Set(keepChecked || getSelectedFactors());
   $("factorList").innerHTML = allFactorValues().map(f => {
     const isCustom = store.customFactors.includes(f);
-    return `<label><input type="checkbox" class="factor" value="${f}" ${checked.has(f) ? "checked" : ""}> ${f}</label>` +
+    const st = tableStatus(f), tag = st === "known" ? "" : st === "learning" ? " 📘" : " 🔒";
+    return `<label title="${st}"><input type="checkbox" class="factor" value="${f}" ${checked.has(f) ? "checked" : ""}> ${f}${tag}</label>` +
       (isCustom ? `<a href="#" class="remove" data-remove="${f}" title="Remove">✕</a>` : "");
   }).join("");
   syncAllBox();
@@ -421,6 +547,7 @@ function addCustomFactor() {
   const selected = getSelectedFactors();
   if (!allFactorValues().includes(v)) { store.customFactors.push(v); saveStore(); }
   renderFactors([...selected, v]);
+  renderMastery();
   $("customFactor").value = "";
 }
 
@@ -503,19 +630,34 @@ function readSettings() {
     target: parseFloat($("target").value),
     zeros: $("zeros").checked,
     showShortcut: $("showShortcut").checked,
-    mode: document.querySelector('input[name="mode"]:checked').value
+    mode: document.querySelector('input[name="mode"]:checked').value,
+    learnFactor: parseInt($("learnFactor").value, 10),
+    stage: document.querySelector('input[name="stage"]:checked').value
   };
+}
+
+function buildLearnQueue(f, stage) {
+  const ns = Array.from({ length: LEARN_MAX }, (_, i) => i + 1);
+  if (stage === "shuffle") for (let i = ns.length - 1; i > 0; i--) { const j = rand(0, i); [ns[i], ns[j]] = [ns[j], ns[i]]; }
+  return ns.map(n => ({ f, n, retry: false }));
 }
 
 function startGame() {
   const s = readSettings();
+  if (s.mode === "learn") {
+    s.zeros = false; s.min = 1; s.max = LEARN_MAX; s.total = LEARN_MAX;
+    if (isNaN(s.target) || s.target <= 0) s.target = 5;
+    store.learning[s.learnFactor] = true; saveStore();
+  }
   if (s.mode === "normal" && s.factors.length === 0) { alert("Please select at least one factor."); return; }
   if (s.mode === "review" && Object.keys(store.weak).length === 0) { alert("Your weak spots notebook is empty — play a normal round first."); return; }
   if (isNaN(s.min) || isNaN(s.max) || s.min < 1 || s.min > s.max) { alert("Check the range: 'from' must be 1 or more and not bigger than 'to'."); return; }
   if (isNaN(s.total) || s.total < 1) s.total = 20;
   if (isNaN(s.target) || s.target <= 0) s.target = 5;
 
-  game = { s, results: [], graduated: [], celebrations: [], xpGained: 0, current: null, locked: false, waitingForNext: false, startTime: 0 };
+  game = { s, results: [], graduated: [], celebrations: [], xpGained: 0, current: null, locked: false, waitingForNext: false, startTime: 0,
+           queue: s.mode === "learn" ? buildLearnQueue(s.learnFactor, s.stage) : null, masteryBefore: s.mode === "learn" ? tableMastery(s.learnFactor) : 0 };
+  $("timer").style.visibility = s.mode === "learn" && s.stage === "order" ? "hidden" : "";
   $("setup").style.display = "none";
   $("summary").style.display = "none";
   $("today").style.display = "none";   // focus mode while playing
@@ -526,15 +668,28 @@ function startGame() {
 }
 
 function nextQuestion() {
-  if (game.results.length >= game.s.total) { finishRound(); return; }
-  game.current = pickQuestion(game.s);
+  const learn = game.s.mode === "learn";
+  if (learn ? game.queue.length === 0 : game.results.length >= game.s.total) { finishRound(); return; }
+  if (learn) {
+    const it = game.queue.shift();
+    const inOrder = game.s.stage === "order";
+    game.current = { f: it.f, n: it.n, zf: 0, zn: 0, a: it.f, b: it.n, flipped: !inOrder && Math.random() < 0.5, fromWeak: false, retry: it.retry };
+  } else {
+    game.current = pickQuestion(game.s);
+  }
   game.locked = false;
   game.waitingForNext = false;
 
   const q = game.current;
   const [x, y] = q.flipped ? [q.b, q.a] : [q.a, q.b];
   $("question").textContent = `${fmt(x)} × ${fmt(y)}`;
-  $("progress").textContent = `Question ${game.results.length + 1} of ${game.s.total}` + (q.fromWeak ? "  •  from your notebook" : "");
+  if (learn) {
+    const done = LEARN_MAX - new Set(game.queue.map(i => i.n).concat(q.n)).size;
+    $("progress").textContent = `📘 ×${q.f} · ${game.s.stage === "order" ? "Step 1" : "Step 2"} · ${done}/${LEARN_MAX} done` + (q.retry ? "  •  🔁 second try" : "");
+  } else {
+    $("progress").textContent = `Question ${game.results.length + 1} of ${game.s.total}` + (q.fromWeak ? "  •  from your notebook" : "");
+  }
+  $("hintBtn").style.display = learn && game.s.stage === "order" ? "" : "none";
   $("result").textContent = "";
   $("result").className = "";
   $("shortcut").style.display = "none";
@@ -577,11 +732,21 @@ function submit() {
   const q = game.current;
   const correct = q.a * q.b;
   const isRight = val === correct;
-  const isSlow = isRight && secs > game.s.target;
+  const learn = game.s.mode === "learn", inOrder = learn && game.s.stage === "order";
+  const isSlow = isRight && !inOrder && secs > game.s.target;   // no time pressure in Step 1
   const ratioLog = Math.log10(val / correct);
   const zeroSlip = !isRight && val > 0 && Number.isInteger(Math.round(ratioLog * 1e9) / 1e9) && Math.round(ratioLog) !== 0;
+  const usedHint = !!q.usedHint;
 
   game.results.push({ q, val, correct, secs, isRight, isSlow, zeroSlip });
+
+  // Mastery: Step 1 (in order) is for learning the pattern, so it doesn't count.
+  if (!inOrder && !zeroSlip) updateFact(q, isRight && !isSlow && !usedHint, isRight);
+  // Learn mode: a miss comes back a few questions later
+  if (learn && !isRight) {
+    const pos = inOrder ? Math.min(3, game.queue.length) : game.queue.length;
+    game.queue.splice(pos, 0, { f: q.f, n: q.n, retry: true });
+  }
 
   // Daily progress + XP: 10 for right & fast, 4 for right but slow, 1 for trying
   const rec = todayRec();
@@ -600,7 +765,8 @@ function submit() {
   if (totalQ >= 1000) { const b = award("q1000"); if (b) game.celebrations.push(`${b.ic} New badge: ${b.name}`); }
   saveStore();
   renderMotivation();
-  if (!zeroSlip) updateWeak(q, isRight, isSlow); // a zero slip means the digits were right — it's a zeros problem, not a tables problem
+  // Weak spots notebook is for tables you know — mistakes while learning are expected, so they don't go there
+  if (!zeroSlip && !learn) updateWeak(q, isRight, isSlow); // a zero slip means the digits were right — it's a zeros problem, not a tables problem
 
   const t = secs.toFixed(1) + "s";
   if (isRight && !isSlow) {
@@ -615,7 +781,7 @@ function submit() {
       $("result").innerHTML = `Right digits, wrong number of zeros! Correct: <span class="ok">${fmt(correct)}</span>`;
       $("result").className = "bad";
     } else {
-      $("result").innerHTML = `Incorrect. The correct answer is <span class="ok">${fmt(correct)}</span>`;
+      $("result").innerHTML = `Incorrect. The correct answer is <span class="ok">${fmt(correct)}</span>` + (learn ? "<br><span class='hint'>No stress — this one will come back in a moment.</span>" : "");
       $("result").className = "bad";
     }
     if (game.s.showShortcut) {
@@ -664,7 +830,8 @@ function finishRound() {
   const zeroSlips = r.filter(x => x.zeroSlip).length;
   const slowest = [...r].sort((a, b) => b.secs - a.secs).slice(0, 3);
 
-  store.sessions.unshift({ date: new Date().toISOString(), n: r.length, acc, avg, fastPct, mode: game.s.mode, zeros: game.s.zeros });
+  store.sessions.unshift({ date: new Date().toISOString(), n: r.length, acc, avg, fastPct, mode: game.s.mode, zeros: game.s.zeros,
+                           learnFactor: game.s.mode === "learn" ? game.s.learnFactor : undefined, stage: game.s.mode === "learn" ? game.s.stage : undefined });
   store.sessions = store.sessions.slice(0, 50);
 
   // --- Gamification: a round counts for the streak if you answered 10+ questions (or finished a shorter round)
@@ -681,8 +848,9 @@ function finishRound() {
     [["first", 1, true], ["s3", 3], ["s7", 7], ["s14", 14], ["s30", 30], ["s60", 60]].forEach(([id, n, always]) => {
       if (always || st >= n) { const b = award(id); if (b) cel.push(`${b.ic} New badge: ${b.name}`); }
     });
-    if (r.length >= 20 && fast === r.length) { const b = award("perfect"); if (b) cel.push(`${b.ic} New badge: ${b.name}`); }
-    if (acc >= 90 && avg !== null && avg < 3) { const b = award("speed"); if (b) cel.push(`${b.ic} New badge: ${b.name}`); }
+    const drill = game.s.mode !== "learn";   // speed badges are for real drills, not learning rounds
+    if (drill && r.length >= 20 && fast === r.length) { const b = award("perfect"); if (b) cel.push(`${b.ic} New badge: ${b.name}`); }
+    if (drill && acc >= 90 && avg !== null && avg < 3) { const b = award("speed"); if (b) cel.push(`${b.ic} New badge: ${b.name}`); }
     if (game.s.zeros && acc >= 90) { const b = award("zeros"); if (b) cel.push(`${b.ic} New badge: ${b.name}`); }
   } else {
     cel.push("ℹ️ Answer at least 10 questions in a round for it to count towards your streak.");
@@ -691,6 +859,37 @@ function finishRound() {
   if (lvlAfter.idx > lvlBefore) cel.unshift(`🎉 Promotion! You've been promoted to <b>${lvlAfter.name}</b>.`);
   saveStore();
   renderMotivation();
+
+  // --- Learn-mode coaching
+  let learnHtml = "";
+  if (game.s.mode === "learn") {
+    const f = game.s.learnFactor;
+    const first = r.filter(x => !x.q.retry);
+    const firstOk = first.filter(x => x.isRight && !x.isSlow).length;
+    const firstPct = first.length ? Math.round(100 * firstOk / first.length) : 0;
+    const mNow = Math.round(100 * tableMastery(f)), mBefore = Math.round(100 * game.masteryBefore);
+    const finished = game.queue.length === 0;
+    let advice;
+    if (!finished) advice = "Round stopped early — no problem. Next time try to reach all 20.";
+    else if (game.s.stage === "order")
+      advice = firstPct >= 90 ? `Strong! You know the pattern. <b>Next: Step 2 (shuffled)</b> for ×${f}.`
+                              : `Do Step 1 once more (tomorrow is fine). Aim for 18/20 right on the first try.`;
+    else if (tableStatus(f) === "known")
+      advice = `🎉 <b>×${f} is now ✅ known!</b> It will join your normal rounds. Keep it fresh there for a few days before starting the next table.`;
+    else if (mNow === 0 && firstPct >= 80) advice = `Good first pass! Come back <b>tomorrow</b> and do Step 2 again. A fact is mastered after two good days, so today plants the seed and tomorrow locks it in.`;
+    else advice = `Repeat Step 2 tomorrow (one round a day is plenty). A fact is mastered after on-time answers on two different days. Spacing it out is what makes it stick.`;
+    if (finished && game.s.stage === "shuffle" && tableStatus(f) === "known" && !store.badges["learn_" + f]) {
+      store.badges["learn_" + f] = dayKey(new Date());
+      store.xp += 200; game.xpGained += 200;
+      cel.push(`📘 Table ×${f} learned! +200 XP`);
+      // tick it for normal rounds
+      renderFactors([...getSelectedFactors(), f]);
+    }
+    saveStore();
+    learnHtml = `<p><b>📘 ×${f}, ${game.s.stage === "order" ? "Step 1 (in order)" : "Step 2 (shuffled)"}:</b> right the first time ${firstOk}/${first.length} (${firstPct}%)` +
+      (game.s.stage === "shuffle" ? ` · table mastery ${mBefore}% → <b>${mNow}%</b>` : "") + `</p><p>${advice}</p>`;
+    renderMastery();
+  }
 
   const ready = acc >= 90 && fastPct >= 80;
   $("summary").innerHTML = `
@@ -701,7 +900,7 @@ function finishRound() {
     <p>✅ Right and fast: <b>${fast}</b> &nbsp; 🐢 Right but slow: <b>${slow}</b> &nbsp; ❌ Wrong: <b>${wrong}</b>${game.s.zeros ? ` (of which zero slips: <b>${zeroSlips}</b>)` : ""}</p>
     <p>Slowest questions: ${slowest.map(x => `${fmt(x.q.a)} × ${fmt(x.q.b)} (${x.secs.toFixed(1)}s)`).join(", ")}</p>
     ${game.graduated.length ? `<p>🎓 Graduated from your notebook: ${game.graduated.join(", ")}</p>` : ""}
-    <p class="${ready ? "ok" : "slow"}"><b>${ready ? "Interview-ready pace on this set. Raise the difficulty (wider range or zeros)." : "Goal: at least 90% right AND at least 80% under your target time. Next: a 'Weak spots only' round."}</b></p>`;
+    ${learnHtml || `<p class="${ready ? "ok" : "slow"}"><b>${ready ? "Interview-ready pace on this set. Raise the difficulty (wider range or zeros)." : "Goal: at least 90% right AND at least 80% under your target time. Next: a 'Weak spots only' round."}</b></p>`}`;
   $("summary").insertAdjacentHTML("beforeend", `<p id="roundQuote" style="font-style:italic;color:#555">“${quoteOfDay(game.results.length + store.sessions.length)}”</p>`);
   $("summary").style.display = "block";
   $("today").style.display = "";
@@ -743,7 +942,7 @@ function renderLog() {
     rows.map(s => {
       const d = new Date(s.date);
       const when = d.toLocaleDateString("en-GB") + " " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-      return `<tr><td>${when}</td><td>${s.mode === "review" ? "Weak spots" : "Normal"}${s.zeros ? " + zeros" : ""}</td><td>${s.n}</td><td>${s.acc}%</td><td>${s.fastPct}%</td><td>${s.avg == null ? "–" : s.avg.toFixed(1) + "s"}</td></tr>`;
+      return `<tr><td>${when}</td><td>${s.mode === "review" ? "Weak spots" : s.mode === "learn" ? `Learn ×${s.learnFactor} (${s.stage === "order" ? "1" : "2"})` : "Normal"}${s.zeros ? " + zeros" : ""}</td><td>${s.n}</td><td>${s.acc}%</td><td>${s.fastPct}%</td><td>${s.avg == null ? "–" : s.avg.toFixed(1) + "s"}</td></tr>`;
     }).join("") + `</table>`;
 }
 
@@ -754,6 +953,26 @@ window.onload = function () {
   renderFactors();
   renderWeak();
   renderLog();
+
+  // Learning mode + mastery
+  renderFactors(knownFactors());          // normal rounds start with the tables you know (and the one you're learning)
+  renderMastery();
+  document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener("change", syncModeUI));
+  $("learnFactor").addEventListener("change", () => { if ($("sheet").style.display !== "none") renderSheet(+$("learnFactor").value); });
+  $("sheetBtn").addEventListener("click", () => {
+    const show = $("sheet").style.display === "none";
+    if (show) renderSheet(+$("learnFactor").value);
+    $("sheet").style.display = show ? "block" : "none";
+    $("sheetBtn").textContent = show ? "Hide cheat sheet" : "📄 Show cheat sheet";
+  });
+  $("knownBtn").addEventListener("click", () => renderFactors(knownFactors()));
+  $("hintBtn").addEventListener("click", () => {
+    if (!game || game.locked) return;
+    game.current.usedHint = true;
+    $("shortcut").innerHTML = buildShortcut(game.current);
+    $("shortcut").style.display = "block";
+    $("answer").focus();
+  });
 
   // Plan settings
   const S = store.settings;
@@ -785,6 +1004,7 @@ window.onload = function () {
     store.customFactors = store.customFactors.filter(x => x !== +f);
     saveStore();
     renderFactors(selected);
+    renderMastery();
   });
   $("addFactorBtn").addEventListener("click", addCustomFactor);
   $("customFactor").addEventListener("keydown", e => { if (e.key === "Enter") addCustomFactor(); });
