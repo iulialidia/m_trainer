@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consulting Math Trainer</title>
+<style>
+  :root { --green:#1a7f37; --red:#c62828; --amber:#b26a00; --ink:#222; --muted:#666; --line:#ddd; --bg:#fafafa; --accent:#0b5d3b; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; margin: 0; background: var(--bg); color: var(--ink); }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { text-align: center; margin: 0 0 16px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .card h2 { font-size: 17px; margin: 14px 0 8px; }
+  .card h2:first-child { margin-top: 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 8px 0; }
+  label { cursor: pointer; }
+  input[type=number] { width: 75px; font-size: 15px; padding: 3px; }
+  button { font-size: 15px; padding: 7px 14px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+  button.secondary { background: #fff; color: var(--accent); }
+  .hint { color: var(--muted); font-size: 13px; }
+  .remove { color: var(--red); text-decoration: none; font-size: 12px; margin-left: 2px; }
+  #play { text-align: center; }
+  #status { display: flex; justify-content: space-between; color: var(--muted); font-size: 14px; }
+  #timer { font-variant-numeric: tabular-nums; }
+  #question { font-size: 40px; font-weight: bold; margin: 18px 0 12px; letter-spacing: 1px; }
+  #answer { width: 200px; font-size: 24px; text-align: center; padding: 6px; }
+  #result { min-height: 28px; font-size: 18px; font-weight: bold; margin-top: 12px; }
+  .ok { color: var(--green); } .bad { color: var(--red); } .slow { color: var(--amber); }
+  #shortcut { display: none; text-align: left; background: #f3f7f5; border-left: 4px solid var(--accent); padding: 10px 12px; margin-top: 10px; border-radius: 4px; line-height: 1.7; }
+  #nextHint { color: var(--muted); font-size: 13px; margin-top: 8px; display: none; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 10px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); }
+  .empty { color: var(--muted); }
+  #summary { display: none; }
+  .big { font-size: 22px; font-weight: bold; }
+  button.unit { min-width: 52px; font-size: 17px; padding: 9px 10px; }
+  @media (max-width: 480px) {
+    #question { font-size: 32px; }
+    #answer { width: 100%; max-width: 260px; }
+    table { font-size: 12px; }
+    th, td { padding: 4px 3px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Consulting Math Trainer</h1>
+
+  <!-- ============ SETUP ============ -->
+  <div class="card" id="setup">
+    <h2>1. What to practise</h2>
+    <div class="row"><label><input type="checkbox" id="allFactors"> <b>All factors</b></label></div>
+    <div class="row" id="factorList"></div>
+    <div class="row">
+      <input type="number" id="customFactor" placeholder="e.g. 18">
+      <button class="secondary" id="addFactorBtn">+ Add factor</button>
+      <span class="hint">Add any number you want to drill (11, 18, 35, 45…)</span>
+    </div>
+    <div class="row">
+      <label>Multiply by numbers from <input type="number" id="minMult" value="1" min="1"></label>
+      <label>to <input type="number" id="maxMult" value="15" min="1"></label>
+    </div>
+
+    <h2>2. How to practise</h2>
+    <div class="row">
+      <label>Questions per round <input type="number" id="roundSize" value="20" min="1"></label>
+      <label>Target seconds per answer <input type="number" id="target" value="5" min="1" step="0.5"></label>
+    </div>
+    <div class="row"><label><input type="checkbox" id="zeros"> Consulting zeros (e.g. 1,500 × 40,000) — answers like 60m, 60,000,000 or 60000000 all work</label></div>
+    <div class="row"><label><input type="checkbox" id="showShortcut" checked> After a miss or a slow answer, show the shortcut to say out loud</label></div>
+    <div class="row">
+      <label><input type="radio" name="mode" value="normal" checked> Normal round</label>
+      <label><input type="radio" name="mode" value="review"> Weak spots only (<span id="weakCount">0</span> saved)</label>
+    </div>
+    <div class="row"><button id="startBtn">Start round</button></div>
+  </div>
+
+  <!-- ============ PLAY ============ -->
+  <div class="card" id="play" style="display:none">
+    <div id="status"><span id="progress"></span><span id="timer">0.0s</span></div>
+    <div id="question"></div>
+    <input type="text" id="answer" autocomplete="off" inputmode="decimal" enterkeyhint="go">
+    <button id="checkBtn">Check</button>
+    <div class="row" id="unitBtns" style="justify-content:center;display:none">
+      <button class="secondary unit" data-unit="k">k</button>
+      <button class="secondary unit" data-unit="m">m</button>
+      <button class="secondary unit" data-unit="bn">bn</button>
+      <button class="secondary unit" data-unit="000">,000</button>
+      <button class="secondary unit" data-unit="⌫">⌫</button>
+    </div>
+    <div id="result"></div>
+    <div id="shortcut"></div>
+    <div id="nextHint">Say the shortcut out loud, then press <b>Enter</b> for the next question</div>
+    <div class="row" style="justify-content:center;margin-top:14px">
+      <button class="secondary" id="stopBtn">End round</button>
+    </div>
+  </div>
+
+  <!-- ============ SUMMARY ============ -->
+  <div class="card" id="summary"></div>
+
+  <!-- ============ HISTORY ============ -->
+  <div class="card">
+    <h2>Mistake history (this round)</h2>
+    <div id="history" class="empty">No mistakes yet 🎉</div>
+  </div>
+
+  <div class="card">
+    <h2>Weak spots notebook (saved between sessions)</h2>
+    <p class="hint">Every wrong or slow answer lands here. Answer it right and fast 3 times in a row and it "graduates" out of the notebook.</p>
+    <div id="weakTable"></div>
+    <button class="secondary" id="clearWeak">Clear notebook</button>
+  </div>
+
+  <div class="card">
+    <h2>Progress log (last 10 rounds)</h2>
+    <div id="logTable"></div>
+    <button class="secondary" id="clearLog">Clear log</button>
+  </div>
+
+</div>
+
+<script>
+// =====================================================================
+// SETTINGS & SAVED DATA
+// =====================================================================
+const DEFAULT_FACTORS = [12, 15, 25, 30, 50, 75];
+const STORE_KEY = "consultingMathTrainer.v2";
+const GRADUATE_AFTER = 3;        // right + fast this many times in a row -> leaves the notebook
+const WEAK_SHARE_NORMAL = 0.3;   // in a normal round, ~30% of questions come from the notebook
+
+let store = loadStore();
+let game = null;
+let timerId = null;
+
+function loadStore() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE_KEY));
+    if (s && s.weak && s.sessions && s.customFactors) return s;
+  } catch (e) {}
+  return { weak: {}, sessions: [], customFactors: [] };
+}
+function saveStore() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) {}
+}
+
+// =====================================================================
+// SMALL HELPERS
+// =====================================================================
+const $ = id => document.getElementById(id);
+const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+const fmt = x => x.toLocaleString("en-US", { maximumFractionDigits: 2 });
+
+// Accepts "210", "21,000", "21 000", "21k", "2.1m", "3bn"
+function parseAnswer(raw) {
+  let s = raw.trim().toLowerCase().replace(/[,\s_]/g, "");
+  let mult = 1;
+  if (s.endsWith("bn")) { mult = 1e9; s = s.slice(0, -2); }
+  else if (s.endsWith("b")) { mult = 1e9; s = s.slice(0, -1); }
+  else if (s.endsWith("m")) { mult = 1e6; s = s.slice(0, -1); }
+  else if (s.endsWith("k")) { mult = 1e3; s = s.slice(0, -1); }
+  if (!/^\d+(\.\d+)?$/.test(s)) return null;
+  return Math.round(parseFloat(s) * mult);
+}
+
+// =====================================================================
+// FACTOR CHECKBOXES
+// =====================================================================
+function allFactorValues() { return [...DEFAULT_FACTORS, ...store.customFactors]; }
+function getSelectedFactors() { return [...document.querySelectorAll(".factor:checked")].map(c => +c.value); }
+
+function renderFactors(keepChecked) {
+  const checked = new Set(keepChecked || getSelectedFactors());
+  $("factorList").innerHTML = allFactorValues().map(f => {
+    const isCustom = store.customFactors.includes(f);
+    return `<label><input type="checkbox" class="factor" value="${f}" ${checked.has(f) ? "checked" : ""}> ${f}</label>` +
+      (isCustom ? `<a href="#" class="remove" data-remove="${f}" title="Remove">✕</a>` : "");
+  }).join("");
+  syncAllBox();
+}
+function syncAllBox() {
+  const boxes = [...document.querySelectorAll(".factor")];
+  $("allFactors").checked = boxes.length > 0 && boxes.every(c => c.checked);
+}
+function addCustomFactor() {
+  const v = parseInt($("customFactor").value, 10);
+  if (isNaN(v) || v < 2 || v > 999) { alert("Enter a whole number between 2 and 999."); return; }
+  const selected = getSelectedFactors();
+  if (!allFactorValues().includes(v)) { store.customFactors.push(v); saveStore(); }
+  renderFactors([...selected, v]);
+  $("customFactor").value = "";
+}
+
+// =====================================================================
+// THE "SAY IT OUT LOUD" SHORTCUT
+// =====================================================================
+function shortcutSteps(f, n) {
+  const p = f * n;
+  const B = x => `<b>${fmt(x)}</b>`;
+  switch (f) {
+    case 12: return [`12 = 10 + 2`, `10 × ${n} = ${fmt(10 * n)}`, `2 × ${n} = ${fmt(2 * n)}`, `${fmt(10 * n)} + ${fmt(2 * n)} = ${B(p)}`];
+    case 15: return [`15 = 10 + half of 10`, `10 × ${n} = ${fmt(10 * n)}`, `half of that = ${fmt(5 * n)}`, `${fmt(10 * n)} + ${fmt(5 * n)} = ${B(p)}`];
+    case 25: return [`25 is a quarter of 100`, `${n} ÷ 4 = ${fmt(n / 4)}`, `${fmt(n / 4)} × 100 = ${B(p)}`];
+    case 30: return [`30 = 3 × 10`, `3 × ${n} = ${fmt(3 * n)}`, `add one zero → ${B(p)}`];
+    case 50: return [`50 is half of 100`, `${n} × 100 = ${fmt(100 * n)}`, `half of that = ${B(p)}`];
+    case 75: return [`75 = 100 − 25`, `100 × ${n} = ${fmt(100 * n)}`, `25 × ${n} = a quarter of that = ${fmt(25 * n)}`, `${fmt(100 * n)} − ${fmt(25 * n)} = ${B(p)}`];
+    case 11: return [`11 = 10 + 1`, `10 × ${n} = ${fmt(10 * n)}`, `add ${n} once more → ${B(p)}`];
+  }
+  if (f < 10) return [`${f} × ${n}: this one should be automatic — repeat it until it is`, `= ${B(p)}`];
+  if (f >= 100) {
+    const h = f - (f % 100), r = f % 100;
+    if (r === 0) return [`${f} = ${h / 100} × 100`, `${h / 100} × ${n} = ${fmt(h / 100 * n)}`, `add two zeros → ${B(p)}`];
+    return [`${f} = ${h} + ${r}`, `${h} × ${n} = ${fmt(h * n)}`, `${r} × ${n} = ${fmt(r * n)}`, `${fmt(h * n)} + ${fmt(r * n)} = ${B(p)}`];
+  }
+  const t = f - (f % 10), u = f % 10;
+  if (u === 0) return [`${f} = ${t / 10} × 10`, `${t / 10} × ${n} = ${fmt(t / 10 * n)}`, `add one zero → ${B(p)}`];
+  if (u >= 7) {
+    const up = t + 10, down = 10 - u;
+    return [`${f} = ${up} − ${down} (round up, then take back)`, `${up} × ${n} = ${fmt(up * n)}`, `${down} × ${n} = ${fmt(down * n)}`, `${fmt(up * n)} − ${fmt(down * n)} = ${B(p)}`];
+  }
+  return [`${f} = ${t} + ${u}`, `${t} × ${n} = ${fmt(t * n)}`, `${u} × ${n} = ${fmt(u * n)}`, `${fmt(t * n)} + ${fmt(u * n)} = ${B(p)}`];
+}
+
+function buildShortcut(q) {
+  const lines = ["🗣 <b>Say it out loud, as if to the interviewer:</b>"];
+  const zerosTotal = q.zf + q.zn;
+  if (zerosTotal > 0) lines.push(`→ Park the zeros first: think of ${q.f} × ${q.n}`);
+  shortcutSteps(q.f, q.n).forEach(s => lines.push("→ " + s));
+  if (zerosTotal > 0) {
+    lines.push(`→ Now add the zeros back: ${q.zf} + ${q.zn} = ${zerosTotal} zero${zerosTotal > 1 ? "s" : ""} → <b>${fmt(q.a * q.b)}</b>`);
+  }
+  return lines.join("<br>");
+}
+
+// =====================================================================
+// PICKING QUESTIONS
+// =====================================================================
+function weakWeight(w) { return 1 + 2 * w.wrong + w.slow; }
+
+function weightedPick(list) {
+  const total = list.reduce((s, w) => s + weakWeight(w), 0);
+  let r = Math.random() * total;
+  for (const w of list) { r -= weakWeight(w); if (r <= 0) return w; }
+  return list[list.length - 1];
+}
+
+function pickQuestion(s) {
+  const weakList = Object.values(store.weak).filter(w => s.mode === "review" || s.factors.includes(w.f));
+  let f, n, fromWeak = false;
+  for (let tries = 0; tries < 8; tries++) {
+    fromWeak = s.mode === "review" ? true : (weakList.length > 0 && Math.random() < WEAK_SHARE_NORMAL);
+    if (fromWeak) { const w = weightedPick(weakList); f = w.f; n = w.n; }
+    else { f = s.factors[rand(0, s.factors.length - 1)]; n = rand(s.min, s.max); }
+    if (!game.current || game.current.f !== f || game.current.n !== n) break; // avoid the same question twice in a row
+  }
+  let zf = 0, zn = 0;
+  if (s.zeros) { zf = rand(0, 3); zn = rand(0, 3); if (zf + zn === 0) zn = rand(1, 3); }
+  return { f, n, zf, zn, a: f * 10 ** zf, b: n * 10 ** zn, flipped: Math.random() < 0.5, fromWeak };
+}
+
+// =====================================================================
+// THE GAME LOOP
+// =====================================================================
+function readSettings() {
+  return {
+    factors: getSelectedFactors(),
+    min: parseInt($("minMult").value, 10),
+    max: parseInt($("maxMult").value, 10),
+    total: parseInt($("roundSize").value, 10),
+    target: parseFloat($("target").value),
+    zeros: $("zeros").checked,
+    showShortcut: $("showShortcut").checked,
+    mode: document.querySelector('input[name="mode"]:checked').value
+  };
+}
+
+function startGame() {
+  const s = readSettings();
+  if (s.mode === "normal" && s.factors.length === 0) { alert("Please select at least one factor."); return; }
+  if (s.mode === "review" && Object.keys(store.weak).length === 0) { alert("Your weak spots notebook is empty — play a normal round first."); return; }
+  if (isNaN(s.min) || isNaN(s.max) || s.min < 1 || s.min > s.max) { alert("Check the range: 'from' must be 1 or more and not bigger than 'to'."); return; }
+  if (isNaN(s.total) || s.total < 1) s.total = 20;
+  if (isNaN(s.target) || s.target <= 0) s.target = 5;
+
+  game = { s, results: [], graduated: [], current: null, locked: false, waitingForNext: false, startTime: 0 };
+  $("setup").style.display = "none";
+  $("summary").style.display = "none";
+  $("unitBtns").style.display = s.zeros ? "flex" : "none";
+  $("play").style.display = "";
+  renderHistory();
+  nextQuestion();
+}
+
+function nextQuestion() {
+  if (game.results.length >= game.s.total) { finishRound(); return; }
+  game.current = pickQuestion(game.s);
+  game.locked = false;
+  game.waitingForNext = false;
+
+  const q = game.current;
+  const [x, y] = q.flipped ? [q.b, q.a] : [q.a, q.b];
+  $("question").textContent = `${fmt(x)} × ${fmt(y)}`;
+  $("progress").textContent = `Question ${game.results.length + 1} of ${game.s.total}` + (q.fromWeak ? "  •  from your notebook" : "");
+  $("result").textContent = "";
+  $("result").className = "";
+  $("shortcut").style.display = "none";
+  $("nextHint").style.display = "none";
+  const input = $("answer");
+  input.value = "";
+  input.readOnly = false;
+  input.focus();
+  startTimer();
+}
+
+function startTimer() {
+  stopTimer();
+  game.startTime = performance.now();
+  $("timer").textContent = "0.0s";
+  timerId = setInterval(() => {
+    const secs = (performance.now() - game.startTime) / 1000;
+    $("timer").textContent = secs.toFixed(1) + "s";
+    $("timer").className = secs > game.s.target ? "slow" : "";
+  }, 100);
+}
+function stopTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
+
+function submit() {
+  if (!game) return;
+  if (game.locked) { if (game.waitingForNext) nextQuestion(); return; } // Enter = "next" while reading feedback
+
+  const val = parseAnswer($("answer").value);
+  if (val === null) {
+    $("result").textContent = "Type a number (e.g. 210, 21,000, 21k, 2.1m)";
+    $("result").className = "slow";
+    return;
+  }
+
+  const secs = (performance.now() - game.startTime) / 1000;
+  stopTimer();
+  game.locked = true;
+  $("answer").readOnly = true;
+
+  const q = game.current;
+  const correct = q.a * q.b;
+  const isRight = val === correct;
+  const isSlow = isRight && secs > game.s.target;
+  const ratioLog = Math.log10(val / correct);
+  const zeroSlip = !isRight && val > 0 && Number.isInteger(Math.round(ratioLog * 1e9) / 1e9) && Math.round(ratioLog) !== 0;
+
+  game.results.push({ q, val, correct, secs, isRight, isSlow, zeroSlip });
+  if (!zeroSlip) updateWeak(q, isRight, isSlow); // a zero slip means the digits were right — it's a zeros problem, not a tables problem
+
+  const t = secs.toFixed(1) + "s";
+  if (isRight && !isSlow) {
+    $("result").innerHTML = `Correct! (${t})`;
+    $("result").className = "ok";
+    setTimeout(() => { if (game && game.locked && !game.waitingForNext) nextQuestion(); }, 800);
+  } else {
+    if (isSlow) {
+      $("result").innerHTML = `Correct, but slow (${t} — target ${game.s.target}s)`;
+      $("result").className = "slow";
+    } else if (zeroSlip) {
+      $("result").innerHTML = `Right digits, wrong number of zeros! Correct: <span class="ok">${fmt(correct)}</span>`;
+      $("result").className = "bad";
+    } else {
+      $("result").innerHTML = `Incorrect. The correct answer is <span class="ok">${fmt(correct)}</span>`;
+      $("result").className = "bad";
+    }
+    if (game.s.showShortcut) {
+      $("shortcut").innerHTML = buildShortcut(q);
+      $("shortcut").style.display = "block";
+    }
+    $("nextHint").style.display = "block";
+    game.waitingForNext = true;
+  }
+  renderHistory();
+}
+
+function updateWeak(q, isRight, isSlow) {
+  const key = q.f + "x" + q.n;
+  const w = store.weak[key];
+  if (!isRight || isSlow) {
+    const entry = w || (store.weak[key] = { f: q.f, n: q.n, wrong: 0, slow: 0, streak: 0 });
+    if (!isRight) entry.wrong++; else entry.slow++;
+    entry.streak = 0;
+  } else if (w) {
+    w.streak++;
+    if (w.streak >= GRADUATE_AFTER) { delete store.weak[key]; game.graduated.push(`${q.f} × ${q.n}`); }
+  }
+  saveStore();
+  renderWeak();
+}
+
+function finishRound() {
+  stopTimer();
+  $("play").style.display = "none";
+  $("setup").style.display = "";
+  const r = game.results;
+  if (r.length === 0) { game = null; return; }
+
+  const right = r.filter(x => x.isRight);
+  const acc = Math.round(100 * right.length / r.length);
+  const avg = right.length ? right.reduce((a, x) => a + x.secs, 0) / right.length : null;
+  const fast = r.filter(x => x.isRight && !x.isSlow).length;
+  const fastPct = Math.round(100 * fast / r.length);
+  const slow = r.filter(x => x.isSlow).length;
+  const wrong = r.length - right.length;
+  const zeroSlips = r.filter(x => x.zeroSlip).length;
+  const slowest = [...r].sort((a, b) => b.secs - a.secs).slice(0, 3);
+
+  store.sessions.unshift({ date: new Date().toISOString(), n: r.length, acc, avg, fastPct, mode: game.s.mode, zeros: game.s.zeros });
+  store.sessions = store.sessions.slice(0, 50);
+  saveStore();
+
+  const ready = acc >= 90 && fastPct >= 80;
+  $("summary").innerHTML = `
+    <h2>Round summary</h2>
+    <p class="big">${acc}% right • ${avg === null ? "–" : avg.toFixed(1) + "s"} average on correct answers</p>
+    <p>✅ Right and fast: <b>${fast}</b> &nbsp; 🐢 Right but slow: <b>${slow}</b> &nbsp; ❌ Wrong: <b>${wrong}</b>${game.s.zeros ? ` (of which zero slips: <b>${zeroSlips}</b>)` : ""}</p>
+    <p>Slowest questions: ${slowest.map(x => `${fmt(x.q.a)} × ${fmt(x.q.b)} (${x.secs.toFixed(1)}s)`).join(", ")}</p>
+    ${game.graduated.length ? `<p>🎓 Graduated from your notebook: ${game.graduated.join(", ")}</p>` : ""}
+    <p class="${ready ? "ok" : "slow"}"><b>${ready ? "Interview-ready pace on this set. Raise the difficulty (wider range or zeros)." : "Goal: at least 90% right AND at least 80% under your target time. Next: a 'Weak spots only' round."}</b></p>`;
+  $("summary").style.display = "block";
+  renderLog();
+  updateWeakCount();
+  game = null;
+}
+
+// =====================================================================
+// HISTORY TABLES
+// =====================================================================
+function renderHistory() {
+  const el = $("history");
+  const misses = game ? game.results.filter(x => !x.isRight || x.isSlow) : [];
+  if (misses.length === 0) { el.className = "empty"; el.innerHTML = "No mistakes yet 🎉"; return; }
+  el.className = "";
+  el.innerHTML = "<ul>" + misses.map(m => {
+    const qTxt = `${fmt(m.q.a)} × ${fmt(m.q.b)}`;
+    if (m.isSlow) return `<li>${qTxt} → correct but slow (${m.secs.toFixed(1)}s)</li>`;
+    return `<li>${qTxt} → You answered: ${fmt(m.val)} → Correct: ${fmt(m.correct)}${m.zeroSlip ? " (zeros slip)" : ""}</li>`;
+  }).join("") + "</ul>";
+}
+
+function renderWeak() {
+  const list = Object.values(store.weak).sort((a, b) => weakWeight(b) - weakWeight(a));
+  updateWeakCount();
+  if (list.length === 0) { $("weakTable").innerHTML = `<p class="empty">Empty — nothing to fix right now.</p>`; return; }
+  $("weakTable").innerHTML = `<table><tr><th>Question</th><th>Answer</th><th>Wrong</th><th>Slow</th><th>Progress to graduate</th></tr>` +
+    list.map(w => `<tr><td>${w.f} × ${w.n}</td><td>${fmt(w.f * w.n)}</td><td>${w.wrong}</td><td>${w.slow}</td><td>${"●".repeat(w.streak)}${"○".repeat(GRADUATE_AFTER - w.streak)}</td></tr>`).join("") +
+    `</table>`;
+}
+function updateWeakCount() { $("weakCount").textContent = Object.keys(store.weak).length; }
+
+function renderLog() {
+  const rows = store.sessions.slice(0, 10);
+  if (rows.length === 0) { $("logTable").innerHTML = `<p class="empty">No rounds yet.</p>`; return; }
+  $("logTable").innerHTML = `<table><tr><th>Date</th><th>Mode</th><th>Qs</th><th>% right</th><th>% fast</th><th>Avg time</th></tr>` +
+    rows.map(s => {
+      const d = new Date(s.date);
+      const when = d.toLocaleDateString("en-GB") + " " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      return `<tr><td>${when}</td><td>${s.mode === "review" ? "Weak spots" : "Normal"}${s.zeros ? " + zeros" : ""}</td><td>${s.n}</td><td>${s.acc}%</td><td>${s.fastPct}%</td><td>${s.avg == null ? "–" : s.avg.toFixed(1) + "s"}</td></tr>`;
+    }).join("") + `</table>`;
+}
+
+// =====================================================================
+// WIRING THE BUTTONS
+// =====================================================================
+window.onload = function () {
+  renderFactors();
+  renderWeak();
+  renderLog();
+
+  $("allFactors").addEventListener("change", () => {
+    document.querySelectorAll(".factor").forEach(c => { c.checked = $("allFactors").checked; });
+  });
+  $("factorList").addEventListener("change", syncAllBox);
+  $("factorList").addEventListener("click", e => {
+    const f = e.target.dataset && e.target.dataset.remove;
+    if (!f) return;
+    e.preventDefault();
+    const selected = getSelectedFactors().filter(x => x !== +f);
+    store.customFactors = store.customFactors.filter(x => x !== +f);
+    saveStore();
+    renderFactors(selected);
+  });
+  $("addFactorBtn").addEventListener("click", addCustomFactor);
+  $("customFactor").addEventListener("keydown", e => { if (e.key === "Enter") addCustomFactor(); });
+
+  // Phone helper: tap k / m / bn / ,000 instead of switching keyboards
+  $("unitBtns").addEventListener("click", e => {
+    const u = e.target.dataset && e.target.dataset.unit;
+    if (!u || !game || game.locked) return;
+    const input = $("answer");
+    input.value = u === "⌫" ? input.value.slice(0, -1) : input.value + u;
+    input.focus();
+  });
+
+  $("startBtn").addEventListener("click", startGame);
+  $("checkBtn").addEventListener("click", submit);
+  $("stopBtn").addEventListener("click", () => { if (game) finishRound(); });
+  $("answer").addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); submit(); }
+  });
+
+  $("clearWeak").addEventListener("click", () => {
+    if (confirm("Clear your whole weak spots notebook?")) { store.weak = {}; saveStore(); renderWeak(); }
+  });
+  $("clearLog").addEventListener("click", () => {
+    if (confirm("Clear your progress log?")) { store.sessions = []; saveStore(); renderLog(); }
+  });
+};
+</script>
+</body>
+</html>
