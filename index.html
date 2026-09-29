@@ -672,8 +672,8 @@ function nextQuestion() {
   if (learn ? game.queue.length === 0 : game.results.length >= game.s.total) { finishRound(); return; }
   if (learn) {
     const it = game.queue.shift();
-    const inOrder = game.s.stage === "order";
-    game.current = { f: it.f, n: it.n, zf: 0, zn: 0, a: it.f, b: it.n, flipped: !inOrder && Math.random() < 0.5, fromWeak: false, retry: it.retry };
+    // 50/50 which side the table number sits on (50 × 7 or 7 × 50), in every step
+    game.current = { f: it.f, n: it.n, zf: 0, zn: 0, a: it.f, b: it.n, flipped: Math.random() < 0.5, fromWeak: false, retry: it.retry };
   } else {
     game.current = pickQuestion(game.s);
   }
