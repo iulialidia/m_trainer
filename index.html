@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Consulting Math Trainer</title>
+<meta name="theme-color" content="#0b5d3b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Math Trainer">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230b5d3b'/><text x='50' y='70' font-size='60' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>×</text></svg>">
 <style>
   :root { --green:#1a7f37; --red:#c62828; --amber:#b26a00; --ink:#222; --muted:#666; --line:#ddd; --bg:#fafafa; --accent:#0b5d3b; }
   * { box-sizing: border-box; }
@@ -35,6 +39,27 @@
   #summary { display: none; }
   .big { font-size: 22px; font-weight: bold; }
   button.unit { min-width: 52px; font-size: 17px; padding: 9px 10px; }
+  /* ---------- motivation ---------- */
+  #today { background: linear-gradient(180deg, #f1f8f4 0%, #fff 70%); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; margin: 4px 0 12px; }
+  .stat { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 4px; }
+  .stat .num { font-size: 26px; font-weight: bold; line-height: 1.1; }
+  .stat .lbl { font-size: 12px; color: var(--muted); }
+  .bar { height: 10px; background: #e6ece9; border-radius: 6px; overflow: hidden; margin: 4px 0 2px; }
+  .bar > div { height: 100%; background: var(--accent); width: 0; transition: width .4s; }
+  .barlbl { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+  #days { display: flex; gap: 4px; justify-content: space-between; margin: 12px 0 4px; }
+  .day { flex: 1; text-align: center; font-size: 10px; color: var(--muted); }
+  .dot { height: 18px; border-radius: 4px; background: #e6ece9; margin-bottom: 2px; }
+  .dot.done { background: var(--accent); } .dot.part { background: #8fc5a8; } .dot.rest { background: repeating-linear-gradient(45deg,#eee,#eee 3px,#fff 3px,#fff 6px); border: 1px solid #e0e0e0; } .dot.today { outline: 2px solid var(--amber); outline-offset: 1px; }
+  #quote { font-style: italic; border-left: 3px solid var(--amber); padding: 6px 10px; margin: 12px 0 0; color: #444; }
+  #phase { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .badge { border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 13px; }
+  .badge .ic { font-size: 22px; }
+  .badge.locked { opacity: .35; filter: grayscale(1); }
+  .celebrate { background: #fff8e6; border: 1px solid #f0d58c; border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+  details summary { cursor: pointer; font-weight: bold; }
   @media (max-width: 480px) {
     #question { font-size: 32px; }
     #answer { width: 100%; max-width: 260px; }
@@ -47,6 +72,27 @@
 <div class="wrap">
 
   <h1>Consulting Math Trainer</h1>
+
+  <!-- ============ TODAY / MOTIVATION ============ -->
+  <div class="card" id="today">
+    <div class="stats">
+      <div class="stat"><div class="num" id="streakNum">0</div><div class="lbl">🔥 day streak<br><span id="bestStreak"></span></div></div>
+      <div class="stat"><div class="num" id="applyDays">–</div><div class="lbl">days to<br>application</div></div>
+      <div class="stat"><div class="num" id="interviewDays">–</div><div class="lbl">days to<br>interview</div></div>
+    </div>
+
+    <div class="barlbl"><span><b>Today's workout</b></span><span id="goalTxt"></span></div>
+    <div class="bar"><div id="goalBar"></div></div>
+
+    <div class="barlbl" style="margin-top:10px"><span id="levelTxt"></span><span id="xpTxt"></span></div>
+    <div class="bar"><div id="xpBar"></div></div>
+
+    <div id="days"></div>
+    <div class="hint">Last 14 days · dark = workout done · light = practised a bit · striped = rest day (doesn't break your streak)</div>
+
+    <div id="quote"></div>
+    <div id="phase"></div>
+  </div>
 
   <!-- ============ SETUP ============ -->
   <div class="card" id="setup">
@@ -120,6 +166,26 @@
     <button class="secondary" id="clearLog">Clear log</button>
   </div>
 
+  <div class="card">
+    <h2>Badges</h2>
+    <div class="badges" id="badges"></div>
+  </div>
+
+  <div class="card">
+    <details>
+      <summary>⚙️ My plan settings</summary>
+      <div class="row"><label>Application date <input type="date" id="applyDate"></label></div>
+      <div class="row"><label>Interview date <input type="date" id="interviewDate"></label></div>
+      <div class="row"><label>Daily goal (questions) <input type="number" id="dailyGoal" min="10" step="10"></label></div>
+      <div class="row"><label>Rest day
+        <select id="restDay">
+          <option value="-1">None</option><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option>
+          <option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option>
+        </select></label></div>
+      <p class="hint">Your streak counts a day once you finish at least one round. On your rest day, skipping doesn't break it. Everything is saved on this device only.</p>
+    </details>
+  </div>
+
 </div>
 
 <script>
@@ -136,11 +202,24 @@ let game = null;
 let timerId = null;
 
 function loadStore() {
-  try {
-    const s = JSON.parse(localStorage.getItem(STORE_KEY));
-    if (s && s.weak && s.sessions && s.customFactors) return s;
-  } catch (e) {}
-  return { weak: {}, sessions: [], customFactors: [] };
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) {}
+  if (!s || !s.weak || !s.sessions || !s.customFactors) s = { weak: {}, sessions: [], customFactors: [] };
+  // Motivation data (added in v3) — filled in for older saves too
+  if (!s.days) {
+    s.days = {};
+    s.sessions.forEach(x => {           // rebuild day history from rounds already played
+      const k = dayKey(new Date(x.date));
+      const d = s.days[k] || (s.days[k] = { q: 0, rounds: 0 });
+      d.q += x.n; d.rounds++;
+    });
+  }
+  if (s.xp == null) s.xp = s.sessions.reduce((a, x) => a + Math.round(x.n * x.acc / 10), 0);
+  if (!s.badges) s.badges = {};
+  if (!s.totalGraduated) s.totalGraduated = 0;
+  if (!s.settings) s.settings = {};
+  s.settings = Object.assign({ applyDate: "2026-11-30", interviewDate: "2027-01-29", dailyGoal: 40, restDay: 6 }, s.settings);
+  return s;
 }
 function saveStore() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) {}
@@ -152,6 +231,158 @@ function saveStore() {
 const $ = id => document.getElementById(id);
 const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
 const fmt = x => x.toLocaleString("en-US", { maximumFractionDigits: 2 });
+
+// =====================================================================
+// MOTIVATION: streak, levels, badges, quotes
+// =====================================================================
+function dayKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+function todayRec() { const k = dayKey(new Date()); return store.days[k] || (store.days[k] = { q: 0, rounds: 0 }); }
+function daysUntil(iso) {
+  if (!iso) return null;
+  const [y, m, d] = iso.split("-").map(Number);
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  return Math.round((new Date(y, m - 1, d) - t) / 86400000);
+}
+
+// A day "counts" when at least one round was finished. The rest day never breaks the streak.
+function streakInfo() {
+  const rest = +store.settings.restDay;
+  const counted = d => { const r = store.days[dayKey(d)]; return r && r.rounds > 0; };
+  let cur = 0;
+  const d = new Date();
+  if (!counted(d)) d.setDate(d.getDate() - 1);           // today isn't over yet — don't break the streak for it
+  for (let i = 0; i < 1000; i++) {
+    if (counted(d)) cur++;
+    else if (d.getDay() !== rest) break;
+    d.setDate(d.getDate() - 1);
+  }
+  // best streak ever
+  const keys = Object.keys(store.days).filter(k => store.days[k].rounds > 0).sort();
+  let best = 0;
+  if (keys.length) {
+    const [y, m, dd] = keys[0].split("-").map(Number);
+    const x = new Date(y, m - 1, dd), end = new Date();
+    let run = 0;
+    while (x <= end) {
+      if (counted(x)) { run++; best = Math.max(best, run); }
+      else if (x.getDay() !== rest && dayKey(x) !== dayKey(end)) run = 0;
+      x.setDate(x.getDate() + 1);
+    }
+  }
+  return { cur, best: Math.max(best, cur) };
+}
+
+// Consulting career ladder — roughly: 2 rounds a day, most days, gets you to Partner around interview time
+const LEVELS = [
+  [0, "Intern"], [1000, "Analyst"], [3000, "Associate"], [7000, "Consultant"],
+  [13000, "Senior Consultant"], [21000, "Project Leader"], [30000, "Principal"], [42000, "Partner"]
+];
+function levelInfo(xp) {
+  let i = 0; while (i + 1 < LEVELS.length && xp >= LEVELS[i + 1][0]) i++;
+  const next = LEVELS[i + 1];
+  return { idx: i, name: LEVELS[i][1], floor: LEVELS[i][0], next: next ? next[0] : null, nextName: next ? next[1] : null };
+}
+
+const BADGES = [
+  { id: "first",   ic: "🌱", name: "First round",        desc: "Finish your first round" },
+  { id: "goal",    ic: "🎯", name: "Full workout",       desc: "Hit your daily goal" },
+  { id: "s3",      ic: "🔥", name: "3-day streak",       desc: "3 days in a row" },
+  { id: "s7",      ic: "📅", name: "One week",           desc: "7-day streak" },
+  { id: "s14",     ic: "💪", name: "Two weeks",          desc: "14-day streak" },
+  { id: "s30",     ic: "🏆", name: "One month",          desc: "30-day streak" },
+  { id: "s60",     ic: "🚀", name: "Application-ready",  desc: "60-day streak" },
+  { id: "perfect", ic: "💯", name: "Clean sheet",        desc: "20+ questions, 100% right and fast" },
+  { id: "speed",   ic: "⚡", name: "Speed demon",        desc: "Round with 90%+ right, avg under 3s" },
+  { id: "zeros",   ic: "0️⃣", name: "Zero hero",          desc: "Zeros round with 90%+ right" },
+  { id: "grad10",  ic: "🎓", name: "Notebook cleaner",   desc: "Graduate 10 weak spots" },
+  { id: "q1000",   ic: "🧮", name: "1,000 answers",      desc: "Answer 1,000 questions in total" }
+];
+function award(id) { if (store.badges[id]) return null; store.badges[id] = dayKey(new Date()); return BADGES.find(b => b.id === id); }
+
+// Original, realistic lines — no fake celebrity quotes
+const QUOTES = [
+  "You don't need to feel motivated today. You need ten minutes.",
+  "The interviewer never sees today's session. They see the sum of all of them.",
+  "Speed is just accuracy you've repeated until it got bored.",
+  "Mental math is a muscle, not a talent. Muscles only grow with reps.",
+  "Two years ago you reached round 3 without this routine. Now picture round 3 with it.",
+  "Missed a day? The streak resets. The skill doesn't. Start again today.",
+  "Nobody gets an offer on one great day. They get it on a hundred ordinary ones.",
+  "The goal isn't to never be slow. It's to be slow a little less often than last week.",
+  "Every wrong answer here is one you won't give in the interview room.",
+  "Calm in the interview is built from boring repetition at home.",
+  "You can't control the case they give you. You can control how fast 15 × 12 comes out.",
+  "Small and daily beats big and occasional. Every single time.",
+  "Say it out loud today, so it sounds natural on the day.",
+  "Discipline is choosing what you want most over what you want right now.",
+  "The version of you in the interview is being built this week.",
+  "Feeling rusty is proof you're working on the right thing.",
+  "Ten focused minutes beat an hour of good intentions.",
+  "A partner once did these exact drills. That's how partners start.",
+  "Progress feels invisible for weeks, then it shows up all at once.",
+  "Don't aim for perfect. Aim for done, then slightly better tomorrow.",
+  "Zeros are where good candidates lose points. Guard them.",
+  "The interview is four months away. Today is the only day you can train for it.",
+  "Confidence isn't a feeling you wait for. It's a record you build.",
+  "Hard today, easier tomorrow, automatic in a month.",
+  "One more round than you planned — that's how the gap closes.",
+  "You're not behind. You're exactly where the training starts.",
+  "Think out loud, structure first, numbers clean. That's the whole game.",
+  "The best time to practise was yesterday. The second best is this round.",
+  "If it's in the notebook, it's a gift: you know exactly what to fix.",
+  "Rest on your rest day. Show up on the others. That's the deal."
+];
+function quoteOfDay(offset = 0) {
+  const d = new Date(); const n = Math.floor(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 86400000);
+  return QUOTES[((n + offset) % QUOTES.length + QUOTES.length) % QUOTES.length];
+}
+function phaseText(toApply, toInterview) {
+  if (toInterview != null && toInterview < 0) return "Interview done — whatever happened, you trained for it properly. 👏";
+  if (toInterview != null && toInterview <= 14) return "🧘 Taper phase: short, sharp sessions. Keep your speed, protect your sleep and confidence.";
+  if (toApply != null && toApply > 0) return "🏗️ Build phase (until you apply): make daily practice automatic. Consistency over intensity.";
+  return "🎯 Sharpen phase (application sent): turn on zeros, widen the range, lower your target time.";
+}
+
+function renderMotivation() {
+  const s = store.settings, t = todayRec(), goal = +s.dailyGoal || 40;
+  const { cur, best } = streakInfo();
+  $("streakNum").textContent = cur;
+  $("bestStreak").textContent = best > 0 ? `best: ${best}` : "";
+  const a = daysUntil(s.applyDate), iv = daysUntil(s.interviewDate);
+  $("applyDays").textContent = a == null ? "–" : Math.max(a, 0);
+  $("interviewDays").textContent = iv == null ? "–" : Math.max(iv, 0);
+
+  const pct = Math.min(100, Math.round(100 * t.q / goal));
+  $("goalBar").style.width = pct + "%";
+  $("goalTxt").textContent = t.q >= goal ? `✅ done (${t.q}/${goal} questions)` : `${t.q} / ${goal} questions`;
+
+  const L = levelInfo(store.xp);
+  $("levelTxt").innerHTML = `<b>Level ${L.idx + 1}: ${L.name}</b>`;
+  $("xpTxt").textContent = L.next ? `${store.xp.toLocaleString("en-US")} / ${L.next.toLocaleString("en-US")} XP → ${L.nextName}` : `${store.xp.toLocaleString("en-US")} XP — top of the ladder 🏆`;
+  $("xpBar").style.width = (L.next ? Math.min(100, 100 * (store.xp - L.floor) / (L.next - L.floor)) : 100) + "%";
+
+  const rest = +s.restDay, today = dayKey(new Date());
+  let html = "";
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const k = dayKey(d), r = store.days[k];
+    let cls = "dot";
+    if (r && r.q >= goal) cls += " done"; else if (r && r.q > 0) cls += " part"; else if (d.getDay() === rest) cls += " rest";
+    if (k === today) cls += " today";
+    html += `<div class="day"><div class="${cls}"></div>${"SMTWTFS"[d.getDay()]}</div>`;
+  }
+  $("days").innerHTML = html;
+  $("quote").textContent = "“" + quoteOfDay() + "”";
+  $("phase").textContent = phaseText(a, iv);
+  renderBadges();
+}
+
+function renderBadges() {
+  $("badges").innerHTML = BADGES.map(b => {
+    const got = store.badges[b.id];
+    return `<div class="badge ${got ? "" : "locked"}"><div class="ic">${b.ic}</div><b>${b.name}</b><br><span class="hint">${got ? "earned " + got : b.desc}</span></div>`;
+  }).join("");
+}
 
 // Accepts "210", "21,000", "21 000", "21k", "2.1m", "3bn"
 function parseAnswer(raw) {
@@ -284,9 +515,10 @@ function startGame() {
   if (isNaN(s.total) || s.total < 1) s.total = 20;
   if (isNaN(s.target) || s.target <= 0) s.target = 5;
 
-  game = { s, results: [], graduated: [], current: null, locked: false, waitingForNext: false, startTime: 0 };
+  game = { s, results: [], graduated: [], celebrations: [], xpGained: 0, current: null, locked: false, waitingForNext: false, startTime: 0 };
   $("setup").style.display = "none";
   $("summary").style.display = "none";
+  $("today").style.display = "none";   // focus mode while playing
   $("unitBtns").style.display = s.zeros ? "flex" : "none";
   $("play").style.display = "";
   renderHistory();
@@ -350,6 +582,24 @@ function submit() {
   const zeroSlip = !isRight && val > 0 && Number.isInteger(Math.round(ratioLog * 1e9) / 1e9) && Math.round(ratioLog) !== 0;
 
   game.results.push({ q, val, correct, secs, isRight, isSlow, zeroSlip });
+
+  // Daily progress + XP: 10 for right & fast, 4 for right but slow, 1 for trying
+  const rec = todayRec();
+  const goal = +store.settings.dailyGoal || 40;
+  const wasBelowGoal = rec.q < goal;
+  rec.q++;
+  const gained = isRight ? (isSlow ? 4 : 10) : 1;
+  store.xp += gained;
+  game.xpGained += gained;
+  if (wasBelowGoal && rec.q >= goal) {
+    store.xp += 100; game.xpGained += 100;
+    game.celebrations.push("🎯 Daily goal reached! +100 XP bonus");
+    const b = award("goal"); if (b) game.celebrations.push(`${b.ic} New badge: ${b.name}`);
+  }
+  const totalQ = Object.values(store.days).reduce((a, d) => a + d.q, 0);
+  if (totalQ >= 1000) { const b = award("q1000"); if (b) game.celebrations.push(`${b.ic} New badge: ${b.name}`); }
+  saveStore();
+  renderMotivation();
   if (!zeroSlip) updateWeak(q, isRight, isSlow); // a zero slip means the digits were right — it's a zeros problem, not a tables problem
 
   const t = secs.toFixed(1) + "s";
@@ -387,7 +637,11 @@ function updateWeak(q, isRight, isSlow) {
     entry.streak = 0;
   } else if (w) {
     w.streak++;
-    if (w.streak >= GRADUATE_AFTER) { delete store.weak[key]; game.graduated.push(`${q.f} × ${q.n}`); }
+    if (w.streak >= GRADUATE_AFTER) {
+      delete store.weak[key]; game.graduated.push(`${q.f} × ${q.n}`);
+      store.totalGraduated++;
+      if (store.totalGraduated >= 10) { const b = award("grad10"); if (b) game.celebrations.push(`${b.ic} New badge: ${b.name}`); }
+    }
   }
   saveStore();
   renderWeak();
@@ -412,17 +666,46 @@ function finishRound() {
 
   store.sessions.unshift({ date: new Date().toISOString(), n: r.length, acc, avg, fastPct, mode: game.s.mode, zeros: game.s.zeros });
   store.sessions = store.sessions.slice(0, 50);
+
+  // --- Gamification: a round counts for the streak if you answered 10+ questions (or finished a shorter round)
+  const cel = game.celebrations;
+  const counts = r.length >= Math.min(10, game.s.total);
+  const lvlBefore = levelInfo(store.xp - game.xpGained).idx;
+  if (counts) {
+    const rec = todayRec();
+    const firstToday = rec.rounds === 0;
+    rec.rounds++;
+    store.xp += 25; game.xpGained += 25;
+    const st = streakInfo().cur;
+    if (firstToday) cel.unshift(`🔥 Day ${st} of your streak — today counts!`);
+    [["first", 1, true], ["s3", 3], ["s7", 7], ["s14", 14], ["s30", 30], ["s60", 60]].forEach(([id, n, always]) => {
+      if (always || st >= n) { const b = award(id); if (b) cel.push(`${b.ic} New badge: ${b.name}`); }
+    });
+    if (r.length >= 20 && fast === r.length) { const b = award("perfect"); if (b) cel.push(`${b.ic} New badge: ${b.name}`); }
+    if (acc >= 90 && avg !== null && avg < 3) { const b = award("speed"); if (b) cel.push(`${b.ic} New badge: ${b.name}`); }
+    if (game.s.zeros && acc >= 90) { const b = award("zeros"); if (b) cel.push(`${b.ic} New badge: ${b.name}`); }
+  } else {
+    cel.push("ℹ️ Answer at least 10 questions in a round for it to count towards your streak.");
+  }
+  const lvlAfter = levelInfo(store.xp);
+  if (lvlAfter.idx > lvlBefore) cel.unshift(`🎉 Promotion! You've been promoted to <b>${lvlAfter.name}</b>.`);
   saveStore();
+  renderMotivation();
 
   const ready = acc >= 90 && fastPct >= 80;
   $("summary").innerHTML = `
     <h2>Round summary</h2>
+    <p><b>+${game.xpGained} XP</b></p>
+    ${cel.length ? `<div class="celebrate">${cel.join("<br>")}</div>` : ""}
     <p class="big">${acc}% right • ${avg === null ? "–" : avg.toFixed(1) + "s"} average on correct answers</p>
     <p>✅ Right and fast: <b>${fast}</b> &nbsp; 🐢 Right but slow: <b>${slow}</b> &nbsp; ❌ Wrong: <b>${wrong}</b>${game.s.zeros ? ` (of which zero slips: <b>${zeroSlips}</b>)` : ""}</p>
     <p>Slowest questions: ${slowest.map(x => `${fmt(x.q.a)} × ${fmt(x.q.b)} (${x.secs.toFixed(1)}s)`).join(", ")}</p>
     ${game.graduated.length ? `<p>🎓 Graduated from your notebook: ${game.graduated.join(", ")}</p>` : ""}
     <p class="${ready ? "ok" : "slow"}"><b>${ready ? "Interview-ready pace on this set. Raise the difficulty (wider range or zeros)." : "Goal: at least 90% right AND at least 80% under your target time. Next: a 'Weak spots only' round."}</b></p>`;
+  $("summary").insertAdjacentHTML("beforeend", `<p id="roundQuote" style="font-style:italic;color:#555">“${quoteOfDay(game.results.length + store.sessions.length)}”</p>`);
   $("summary").style.display = "block";
+  $("today").style.display = "";
+  $("summary").scrollIntoView({ behavior: "smooth", block: "start" });
   renderLog();
   updateWeakCount();
   game = null;
@@ -471,6 +754,24 @@ window.onload = function () {
   renderFactors();
   renderWeak();
   renderLog();
+
+  // Plan settings
+  const S = store.settings;
+  $("applyDate").value = S.applyDate || "";
+  $("interviewDate").value = S.interviewDate || "";
+  $("dailyGoal").value = S.dailyGoal;
+  $("restDay").value = String(S.restDay);
+  ["applyDate", "interviewDate", "dailyGoal", "restDay"].forEach(id => {
+    $(id).addEventListener("change", () => {
+      S.applyDate = $("applyDate").value;
+      S.interviewDate = $("interviewDate").value;
+      S.dailyGoal = Math.max(10, parseInt($("dailyGoal").value, 10) || 40);
+      S.restDay = parseInt($("restDay").value, 10);
+      saveStore();
+      renderMotivation();
+    });
+  });
+  renderMotivation();
 
   $("allFactors").addEventListener("change", () => {
     document.querySelectorAll(".factor").forEach(c => { c.checked = $("allFactors").checked; });
