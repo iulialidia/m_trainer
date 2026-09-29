@@ -62,7 +62,7 @@
   details summary { cursor: pointer; font-weight: bold; }
   .mrow { display: grid; grid-template-columns: 44px 1fr 92px; gap: 8px; align-items: center; margin: 6px 0; font-size: 14px; }
   .mrow .bar { margin: 0; }
-  .sheetgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 4px 12px; font-size: 15px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  .sheetgrid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(10, auto); grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 15px; margin-top: 8px; font-variant-numeric: tabular-nums; }
   #sheet { background: #f3f7f5; border-left: 4px solid var(--accent); border-radius: 4px; padding: 10px 12px; margin-top: 8px; }
   @media (max-width: 480px) {
     #question { font-size: 32px; }
