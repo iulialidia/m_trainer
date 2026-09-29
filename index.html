@@ -155,7 +155,7 @@
   <!-- ============ MASTERY ============ -->
   <div class="card" id="masteryCard">
     <h2>My tables</h2>
-    <p class="hint">A fact (like 15 × 7) counts as <b>mastered</b> once you get it right within your target time on <b>two different days</b> in a row, with no mistakes in between (Step 1 doesn't count). Spacing it out is what makes it stick. A table is ✅ known at 90% of its 20 facts.</p>
+    <p class="hint">How the bar fills: finishing Step 1 = 10%. Then each of the 20 facts climbs 3 small steps: <b>·</b> answered right → <b>✓</b> right within your target time → <b>✅</b> on time again on a <b>different day</b> (mastered). A table becomes ✅ known when 18 of its 20 facts are mastered. The two-day rule is on purpose: spacing it out is what makes it stick.</p>
     <div id="mastery"></div>
     <div id="nextSuggest" class="celebrate" style="display:none"></div>
   </div>
@@ -336,9 +336,28 @@ function tableMastery(f) {
   let m = 0; for (let n = 1; n <= LEARN_MAX; n++) if (factMastered(f, n)) m++;
   return m / LEARN_MAX;
 }
+// Visible progress, so every good session moves the bar:
+//   Step 1 finished = 10%, then each of the 20 facts climbs 3 small steps (worth 90% in total):
+//   ① answered right (any speed)  ② right AND on time  ③ right AND on time again on another day = mastered
+function factLevel(f, n) {
+  const x = store.facts[f + "x" + n];
+  if (!x) return 0;
+  if (x.streak >= MASTER_STREAK) return 3;
+  if (x.streak >= 1) return 2;
+  return x.right > 0 ? 1 : 0;
+}
+function step1Done(f) {
+  return !!(store.step1 && store.step1[f]) ||
+    store.sessions.some(s => s.mode === "learn" && s.learnFactor === f && s.stage === "order" && s.n >= LEARN_MAX);
+}
+function tableProgress(f) {
+  if (store.knownTables[f]) return 1;
+  let lv = 0; for (let n = 1; n <= LEARN_MAX; n++) lv += factLevel(f, n);
+  return (step1Done(f) ? 0.1 : 0) + 0.9 * lv / (3 * LEARN_MAX);
+}
 function tableStatus(f) {
   if (store.knownTables[f] || tableMastery(f) >= 0.9) return "known";
-  if (store.learning[f] || tableMastery(f) > 0) return "learning";
+  if (store.learning[f] || tableProgress(f) > 0) return "learning";
   return "new";
 }
 function updateFact(q, rightOnTime, isRight) {
@@ -370,18 +389,19 @@ function ruleLine(f) {
 }
 function renderSheet(f) {
   let cells = "";
-  for (let n = 1; n <= LEARN_MAX; n++) cells += `<div>${f} × ${n} = <b>${fmt(f * n)}</b>${factMastered(f, n) ? " ✓" : ""}</div>`;
+  for (let n = 1; n <= LEARN_MAX; n++) cells += `<div>${f} × ${n} = <b>${fmt(f * n)}</b> ${["", "·", "✓", "✅"][factLevel(f, n)]}</div>`;
   const ex = shortcutSteps(f, 7).join(" → ");
   $("sheet").innerHTML = `<b>How to think about ×${f}:</b> ${ruleLine(f)}<br><span class="hint">Example, out loud: ${ex}</span>` +
     `<div class="sheetgrid">${cells}</div>` +
+    `<p class="hint">· answered right &nbsp; ✓ right and on time &nbsp; ✅ mastered (on time on two different days)</p>` +
     `<p class="hint">Tip: read it once out loud, cover it, then start Step 1. Look for the pattern (each step adds ${f}), don't memorise blindly.</p>`;
 }
 function renderMastery() {
   const facs = [...new Set([...LEARN_ORDER, ...allFactorValues()])];
   $("mastery").innerHTML = facs.map(f => {
-    const st = tableStatus(f), pct = Math.round(100 * tableMastery(f));
+    const st = tableStatus(f), pct = st === "known" ? 100 : Math.round(100 * tableProgress(f));
     const tag = st === "known" ? "✅ known" : st === "learning" ? `📘 ${pct}%` : "🔒 new";
-    return `<div class="mrow"><b>×${f}</b><div class="bar"><div style="width:${st === "known" && pct < 90 ? 100 : pct}%;${st === "learning" ? "background:#8fc5a8" : ""}"></div></div><span>${tag}</span></div>`;
+    return `<div class="mrow"><b>×${f}</b><div class="bar"><div style="width:${pct}%;${st === "learning" ? "background:#8fc5a8" : ""}"></div></div><span>${tag}</span></div>`;
   }).join("");
   const sug = suggestNext(), box = $("nextSuggest");
   if (sug) {
@@ -392,7 +412,7 @@ function renderMastery() {
   } else box.style.display = "none";
   // learn dropdown
   const sel = $("learnFactor"), cur = sel.value;
-  sel.innerHTML = facs.map(f => `<option value="${f}">×${f} — ${tableStatus(f) === "known" ? "known" : tableStatus(f) === "learning" ? "learning " + Math.round(100 * tableMastery(f)) + "%" : "new"}</option>`).join("");
+  sel.innerHTML = facs.map(f => `<option value="${f}">×${f} — ${tableStatus(f) === "known" ? "known" : tableStatus(f) === "learning" ? "learning " + Math.round(100 * tableProgress(f)) + "%" : "new"}</option>`).join("");
   sel.value = cur && facs.includes(+cur) ? cur : String(sug ? sug.f : facs[0]);
 }
 function knownFactors() { return allFactorValues().filter(f => tableStatus(f) !== "new"); }
@@ -656,7 +676,7 @@ function startGame() {
   if (isNaN(s.target) || s.target <= 0) s.target = 5;
 
   game = { s, results: [], graduated: [], celebrations: [], xpGained: 0, current: null, locked: false, waitingForNext: false, startTime: 0,
-           queue: s.mode === "learn" ? buildLearnQueue(s.learnFactor, s.stage) : null, masteryBefore: s.mode === "learn" ? tableMastery(s.learnFactor) : 0 };
+           queue: s.mode === "learn" ? buildLearnQueue(s.learnFactor, s.stage) : null, masteryBefore: s.mode === "learn" ? tableProgress(s.learnFactor) : 0 };
   $("timer").style.visibility = s.mode === "learn" && s.stage === "order" ? "hidden" : "";
   $("setup").style.display = "none";
   $("summary").style.display = "none";
@@ -867,8 +887,11 @@ function finishRound() {
     const first = r.filter(x => !x.q.retry);
     const firstOk = first.filter(x => x.isRight && !x.isSlow).length;
     const firstPct = first.length ? Math.round(100 * firstOk / first.length) : 0;
-    const mNow = Math.round(100 * tableMastery(f)), mBefore = Math.round(100 * game.masteryBefore);
     const finished = game.queue.length === 0;
+    if (finished && game.s.stage === "order") { store.step1 = store.step1 || {}; store.step1[f] = true; }
+    const mNow = Math.round(100 * tableMastery(f)), mBefore = Math.round(100 * game.masteryBefore);
+    const pNow = tableStatus(f) === "known" ? 100 : Math.round(100 * tableProgress(f));
+    let slowCount = 0; for (let n = 1; n <= LEARN_MAX; n++) if (factLevel(f, n) === 1) slowCount++;
     let advice;
     if (!finished) advice = "Round stopped early — no problem. Next time try to reach all 20.";
     else if (game.s.stage === "order")
@@ -876,6 +899,7 @@ function finishRound() {
                               : `Do Step 1 once more (tomorrow is fine). Aim for 18/20 right on the first try.`;
     else if (tableStatus(f) === "known")
       advice = `🎉 <b>×${f} is now ✅ known!</b> It will join your normal rounds. Keep it fresh there for a few days before starting the next table.`;
+    else if (slowCount >= 5) advice = `${slowCount} facts were right but slower than your ${game.s.target}s target, so they're at the first step (·). That's normal while learning. Tomorrow, try to answer them within the target time.`;
     else if (mNow === 0 && firstPct >= 80) advice = `Good first pass! Come back <b>tomorrow</b> and do Step 2 again. A fact is mastered after two good days, so today plants the seed and tomorrow locks it in.`;
     else advice = `Repeat Step 2 tomorrow (one round a day is plenty). A fact is mastered after on-time answers on two different days. Spacing it out is what makes it stick.`;
     if (finished && game.s.stage === "shuffle" && tableStatus(f) === "known" && !store.badges["learn_" + f]) {
@@ -887,7 +911,7 @@ function finishRound() {
     }
     saveStore();
     learnHtml = `<p><b>📘 ×${f}, ${game.s.stage === "order" ? "Step 1 (in order)" : "Step 2 (shuffled)"}:</b> right the first time ${firstOk}/${first.length} (${firstPct}%)` +
-      (game.s.stage === "shuffle" ? ` · table mastery ${mBefore}% → <b>${mNow}%</b>` : "") + `</p><p>${advice}</p>`;
+      ` · table progress ${mBefore}% → <b>${pNow}%</b> (${mNow / 5} of 20 facts fully mastered)</p><p>${advice}</p>`;
     renderMastery();
   }
 
