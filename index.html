@@ -163,6 +163,30 @@
     <div class="row"><button id="startBtn">Start round</button></div>
   </div>
 
+  <!-- ============ EXHIBIT SUMS ============ -->
+  <div class="card" id="sumsCard">
+    <h2>📊 Exhibit sums (rough totals)</h2>
+    <p class="hint">Like reading a row of a case exhibit: round each number to the nearest 50, add, and type your <b>rough total</b>. Within ±10% counts as right — speed matters more than precision. Answer in the same unit as the numbers (e.g. <b>2200</b> or <b>2.2k</b>).</p>
+    <div id="sumsIdle">
+      <div class="row"><button id="sumsStartBtn">Start 10 rows</button></div>
+    </div>
+    <div id="sumsPlay" style="display:none;text-align:center">
+      <div class="barlbl"><span id="sumsProgress"></span><span id="sumsTimer">0.0s</span></div>
+      <div id="sumsTitle" class="hint" style="margin-top:10px"></div>
+      <div style="overflow-x:auto"><table id="sumsTable" style="margin:8px auto;width:auto;font-variant-numeric:tabular-nums"></table></div>
+      <input type="text" id="sumsAnswer" autocomplete="off" inputmode="decimal" enterkeyhint="go" placeholder="rough total" style="width:200px;font-size:22px;text-align:center;padding:6px">
+      <button id="sumsCheckBtn">Check</button>
+      <div id="sumsResult" style="min-height:26px;font-size:18px;font-weight:bold;margin-top:10px"></div>
+      <div id="sumsExplain" style="display:none;text-align:left;background:#f3f7f5;border-left:4px solid var(--accent);padding:10px 12px;margin-top:10px;border-radius:4px;line-height:1.7"></div>
+      <div id="sumsNextHint" class="hint" style="display:none;margin-top:8px">Press <b>Enter</b> for the next row</div>
+      <div class="row" style="justify-content:center;margin-top:12px"><button class="secondary" id="sumsStopBtn">End round</button></div>
+    </div>
+    <div id="sumsSummary" style="display:none"></div>
+    <h2>Exhibit-sums mistakes (saved)</h2>
+    <div id="sumsMistakes" class="empty">No mistakes yet 🎉</div>
+    <button class="secondary" id="sumsClear">Clear</button>
+  </div>
+
   <!-- ============ MASTERY ============ -->
   <div class="card" id="masteryCard">
     <h2>My tables</h2>
@@ -1224,6 +1248,133 @@ window.onload = function () {
     if (confirm("Clear your progress log?")) { store.sessions = []; saveStore(); renderLog(); }
   });
 };
+</script>
+<script>
+// =====================================================================
+// EXHIBIT SUMS — rough totals of an exhibit row (round to nearest 50, add)
+// Self-contained: own state, saves mistakes under store.sums
+// =====================================================================
+(function () {
+  const ROUND_LEN = 10, TOLERANCE = 0.10, GREAT = 0.05, SLOW_SEC = 15;
+  const REGIONS = ["Gulf", "Europe", "Asia", "Americas", "Africa", "Australia"];
+  const TITLES = [
+    "Passengers by region ('000)", "Revenue by region ($M)", "Units sold by region ('000)",
+    "Stores by region", "Customers by segment ('000)", "Costs by business unit ($M)"
+  ];
+  const SEGMENTS = ["Retail", "Corporate", "SME", "Public", "Online", "Wholesale"];
+  let sg = null, sumsTimer = null;
+  const el = id => document.getElementById(id);
+
+  function data() {
+    if (!store.sums) store.sums = { mistakes: [], rounds: [] };
+    return store.sums;
+  }
+  function r50(x) { return Math.round(x / 50) * 50; }
+  function makeRow() {
+    const k = 4 + Math.floor(Math.random() * 3);              // 4-6 numbers
+    const nums = [];
+    const big = Math.floor(Math.random() * k);                // one dominant cell, like real exhibits
+    for (let i = 0; i < k; i++) {
+      let v;
+      if (i === big) v = 600 + Math.floor(Math.random() * 1100);
+      else if (Math.random() < 0.3) v = 10 + Math.floor(Math.random() * 90);
+      else v = 100 + Math.floor(Math.random() * 450);
+      if (v % 10 === 0) v += 1 + Math.floor(Math.random() * 9);   // avoid ready-made round numbers
+      nums.push(v);
+    }
+    const t = Math.floor(Math.random() * TITLES.length);
+    const heads = (t === 4 || t === 5) ? SEGMENTS.slice(0, k) : REGIONS.slice(0, k);
+    return { nums, heads, title: TITLES[t], exact: nums.reduce((a, b) => a + b, 0) };
+  }
+  function renderRow(q) {
+    el("sumsTitle").textContent = q.title;
+    el("sumsTable").innerHTML =
+      "<tr>" + q.heads.map(h => `<th style="text-align:center;padding:4px 5px;font-size:12px">${h}</th>`).join("") + "</tr>" +
+      "<tr>" + q.nums.map(n => `<td style="text-align:center;padding:6px 5px;font-size:18px">${n.toLocaleString("en-US")}</td>`).join("") + "</tr>";
+  }
+  function start() {
+    sg = { i: 0, right: 0, times: [], locked: false, q: null };
+    el("sumsIdle").style.display = "none";
+    el("sumsSummary").style.display = "none";
+    el("sumsPlay").style.display = "block";
+    next();
+  }
+  function next() {
+    if (sg.i >= ROUND_LEN) return finish();
+    sg.q = makeRow(); sg.locked = false; sg.t0 = Date.now();
+    el("sumsProgress").textContent = `Row ${sg.i + 1} of ${ROUND_LEN} · ${sg.right} right`;
+    renderRow(sg.q);
+    el("sumsAnswer").value = ""; el("sumsAnswer").disabled = false; el("sumsAnswer").focus();
+    el("sumsResult").textContent = ""; el("sumsResult").className = "";
+    el("sumsExplain").style.display = "none"; el("sumsNextHint").style.display = "none";
+    clearInterval(sumsTimer);
+    sumsTimer = setInterval(() => { el("sumsTimer").textContent = ((Date.now() - sg.t0) / 1000).toFixed(1) + "s"; }, 100);
+  }
+  function check() {
+    if (!sg) return;
+    if (sg.locked) { sg.i++; return next(); }
+    const val = parseAnswer(el("sumsAnswer").value);
+    if (val == null) { el("sumsResult").textContent = "Type a number, e.g. 2200 or 2.2k"; el("sumsResult").className = "slow"; return; }
+    clearInterval(sumsTimer);
+    const sec = (Date.now() - sg.t0) / 1000;
+    sg.times.push(sec); sg.locked = true; el("sumsAnswer").disabled = true;
+    const q = sg.q, off = (val - q.exact) / q.exact, pct = Math.round(Math.abs(off) * 100);
+    const ok = Math.abs(off) <= TOLERANCE;
+    const slow = sec > SLOW_SEC;
+    if (ok) sg.right++;
+    el("sumsResult").textContent = ok
+      ? (Math.abs(off) <= GREAT ? `✅ Great — only ${pct}% off` : `✅ Right — ${pct}% off`) + (slow ? ` · but slow (${sec.toFixed(1)}s, aim < ${SLOW_SEC}s)` : ` · ${sec.toFixed(1)}s`)
+      : `❌ ${pct}% ${off > 0 ? "too high" : "too low"} — check the zeros`;
+    el("sumsResult").className = ok ? (slow ? "slow" : "ok") : "bad";
+    const rounded = q.nums.map(r50), rsum = rounded.reduce((a, b) => a + b, 0);
+    el("sumsExplain").innerHTML =
+      `<b>Round each to the nearest 50:</b><br>${q.nums.map((n, j) => `${n.toLocaleString("en-US")}→${rounded[j].toLocaleString("en-US")}`).join(" · ")}<br>` +
+      `<b>Add:</b> ${rounded.map(x => x.toLocaleString("en-US")).join(" + ")} = <b>${rsum.toLocaleString("en-US")}</b><br>` +
+      `<b>Exact total:</b> ${q.exact.toLocaleString("en-US")} · you said ${val.toLocaleString("en-US")}<br>` +
+      `<span class="how">Tip: start with the biggest cell — it decides most of the total.</span>`;
+    el("sumsExplain").style.display = "block";
+    el("sumsNextHint").style.display = "block";
+    if (!ok || slow) {
+      const d = data();
+      d.mistakes.unshift({ date: new Date().toISOString(), nums: q.nums, exact: q.exact, ans: val, pct, sec: Math.round(sec * 10) / 10, slowOnly: ok });
+      d.mistakes = d.mistakes.slice(0, 30);
+      saveStore(); renderMistakes();
+    }
+  }
+  function finish() {
+    clearInterval(sumsTimer);
+    const n = sg.times.length;
+    el("sumsPlay").style.display = "none";
+    el("sumsIdle").style.display = "block";
+    if (n === 0) { sg = null; return; }
+    const avg = sg.times.reduce((a, b) => a + b, 0) / n;
+    const d = data();
+    d.rounds.unshift({ date: new Date().toISOString(), n, right: sg.right, avg: Math.round(avg * 10) / 10 });
+    d.rounds = d.rounds.slice(0, 20);
+    saveStore();
+    el("sumsSummary").innerHTML = `<div class="celebrate"><b>Round done:</b> ${sg.right}/${n} within ±10% · average ${avg.toFixed(1)}s per row` +
+      (avg <= 10 && sg.right >= n * 0.8 ? " — exhibit-ready pace 🎯" : ` — goal: 8/10 right at under 10s`) + `</div>`;
+    el("sumsSummary").style.display = "block";
+    sg = null;
+  }
+  function renderMistakes() {
+    const m = data().mistakes;
+    if (!m.length) { el("sumsMistakes").className = "empty"; el("sumsMistakes").textContent = "No mistakes yet 🎉"; return; }
+    el("sumsMistakes").className = "";
+    el("sumsMistakes").innerHTML = "<table><tr><th>Row</th><th>You</th><th>Exact</th><th>Off</th><th>Time</th></tr>" +
+      m.slice(0, 10).map(x => `<tr><td>${x.nums.join(" + ")}</td><td>${x.ans.toLocaleString("en-US")}</td><td>${x.exact.toLocaleString("en-US")}</td><td class="${x.slowOnly ? "slow" : "bad"}">${x.pct}%</td><td>${x.sec}s</td></tr>`).join("") + "</table>";
+  }
+  window.addEventListener("load", () => {
+    renderMistakes();
+    el("sumsStartBtn").addEventListener("click", start);
+    el("sumsCheckBtn").addEventListener("click", check);
+    el("sumsAnswer").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); check(); } });
+    // after an answer the input is disabled, so Enter anywhere moves to the next row
+    document.addEventListener("keydown", e => { if (e.key === "Enter" && sg && sg.locked && e.target !== el("sumsAnswer")) { e.preventDefault(); check(); } });
+    el("sumsStopBtn").addEventListener("click", () => { if (sg) finish(); });
+    el("sumsClear").addEventListener("click", () => { if (confirm("Clear exhibit-sums mistakes?")) { data().mistakes = []; saveStore(); renderMistakes(); } });
+  });
+})();
 </script>
 </body>
 </html>
