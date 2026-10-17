@@ -166,7 +166,7 @@
   <!-- ============ EXHIBIT SUMS ============ -->
   <div class="card" id="sumsCard">
     <h2>📊 Exhibit sums (rough totals)</h2>
-    <p class="hint">Like reading a row of a case exhibit: round each number to the nearest 50, add, and type your <b>rough total</b>. Within ±10% counts as right — speed matters more than precision. Answer in the same unit as the numbers (e.g. <b>2200</b> or <b>2.2k</b>).</p>
+    <p class="hint">Like reading a row of a case exhibit. Three tricks: <b>① start with the biggest cell</b>, <b>② pair up the small cells</b>, <b>③ keep one running total in hundreds</b> (11.5 → 16 → 20…), then type your <b>rough total</b>. Within ±10% counts as right — speed matters more than precision. Answer in the same unit as the numbers (e.g. <b>2200</b> or <b>2.2k</b>).</p>
     <div id="sumsIdle">
       <div class="row"><button id="sumsStartBtn">Start 10 rows</button></div>
     </div>
@@ -1270,6 +1270,32 @@ window.onload = function () {
     return store.sums;
   }
   function r50(x) { return Math.round(x / 50) * 50; }
+  // The 3-trick method: biggest first → pair the small cells → running total in hundreds
+  function h(x) { return (x / 100).toLocaleString("en-US", { maximumFractionDigits: 1 }); }   // 1150 -> "11.5"
+  function methodHTML(nums) {
+    const fmtN = n => n.toLocaleString("en-US");
+    const sorted = nums.map((v, i) => ({ v, i })).sort((a, b) => b.v - a.v);
+    const big = sorted[0];
+    const small = sorted.filter(x => x.v < 100);
+    const pair = small.length >= 2 ? small : [];
+    const middle = sorted.slice(1).filter(x => !pair.includes(x));
+    const steps = [];   // { label, add } in real units, already rounded to 50
+    let total = r50(big.v);
+    let html = `<b>① Start with the biggest:</b> ${fmtN(big.v)} → ${fmtN(r50(big.v))} = <b>${h(r50(big.v))}</b> hundreds<br>`;
+    middle.forEach(x => steps.push({ label: `${fmtN(x.v)}→${h(r50(x.v))}`, add: r50(x.v) }));
+    if (pair.length) {
+      const ps = pair.reduce((a, x) => a + x.v, 0), pr = r50(ps);
+      html += `<b>② Pair the small cells:</b> ${pair.map(x => fmtN(x.v)).join(" + ")} ≈ ${fmtN(ps)} → <b>${h(pr)}</b>` + (pr === 0 ? " (too small to matter)" : "") + `<br>`;
+      steps.push({ label: `pair→${h(pr)}`, add: pr });
+    } else {
+      html += `<b>② Pair the small cells:</b> <span class="how">no small cells under 100 in this row</span><br>`;
+    }
+    let chain = `<b>${h(total)}</b>`;
+    steps.forEach(st => { total += st.add; chain += ` <span class="how">+${st.label}</span> = <b>${h(total)}</b>`; });
+    html += `<b>③ Running total in hundreds:</b> ${chain}<br>`;
+    html += `→ add the zeros back: <b>${fmtN(total)}</b><br>`;
+    return html;
+  }
   function makeRow() {
     const k = 4 + Math.floor(Math.random() * 3);              // 4-6 numbers
     const nums = [];
@@ -1326,12 +1352,8 @@ window.onload = function () {
       ? (Math.abs(off) <= GREAT ? `✅ Great — only ${pct}% off` : `✅ Right — ${pct}% off`) + (slow ? ` · but slow (${sec.toFixed(1)}s, aim < ${SLOW_SEC}s)` : ` · ${sec.toFixed(1)}s`)
       : `❌ ${pct}% ${off > 0 ? "too high" : "too low"} — check the zeros`;
     el("sumsResult").className = ok ? (slow ? "slow" : "ok") : "bad";
-    const rounded = q.nums.map(r50), rsum = rounded.reduce((a, b) => a + b, 0);
-    el("sumsExplain").innerHTML =
-      `<b>Round each to the nearest 50:</b><br>${q.nums.map((n, j) => `${n.toLocaleString("en-US")}→${rounded[j].toLocaleString("en-US")}`).join(" · ")}<br>` +
-      `<b>Add:</b> ${rounded.map(x => x.toLocaleString("en-US")).join(" + ")} = <b>${rsum.toLocaleString("en-US")}</b><br>` +
-      `<b>Exact total:</b> ${q.exact.toLocaleString("en-US")} · you said ${val.toLocaleString("en-US")}<br>` +
-      `<span class="how">Tip: start with the biggest cell — it decides most of the total.</span>`;
+    el("sumsExplain").innerHTML = methodHTML(q.nums) +
+      `<b>Exact total:</b> ${q.exact.toLocaleString("en-US")} · you said ${val.toLocaleString("en-US")}`;
     el("sumsExplain").style.display = "block";
     el("sumsNextHint").style.display = "block";
     if (!ok || slow) {
