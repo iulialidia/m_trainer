@@ -61,6 +61,10 @@
   .badge .ic { font-size: 22px; }
   .badge.locked { opacity: .35; filter: grayscale(1); }
   .celebrate { background: #fff8e6; border: 1px solid #f0d58c; border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+  .opt { background: #fff; color: var(--ink); border: 1px solid var(--line); text-align: left; padding: 11px 14px; font-size: 17px; border-radius: 8px; }
+  .opt .k { display: inline-block; width: 22px; color: var(--muted); font-weight: bold; }
+  .opt.correct { background: #e3f4ea; border-color: var(--green); }
+  .opt.wrong { background: #fdecea; border-color: var(--red); }
   details summary { cursor: pointer; font-weight: bold; }
   #plan { margin-top: 10px; }
   .task { display: grid; grid-template-columns: 26px 1fr; gap: 6px; align-items: start; padding: 7px 8px; border-radius: 8px; margin: 4px 0; font-size: 14px; background: #fff; border: 1px solid var(--line); }
@@ -213,6 +217,27 @@
     <button class="secondary" id="pctClear">Clear</button>
   </div>
 
+  <!-- ============ ONLINE TEST (Assessio-style numerical) ============ -->
+  <div class="card" id="testCard">
+    <h2>🧪 Online test practice (numerical)</h2>
+    <p class="hint">The numerical questions from BCG's online test (Assessio "People Test Match"): the same templates as your two 80-question simulations, with fresh numbers each time. Real test pace is <b>~20 seconds per question</b>, 5 options, no calculator. After each answer you get <b>the fast way</b>, <b>the trap</b> and <b>a 20-second move</b>.</p>
+    <div id="testIdle"><div class="row"><button id="testStartBtn">Start 10 questions</button></div></div>
+    <div id="testPlay" style="display:none;text-align:center">
+      <div class="barlbl"><span id="testProgress"></span><span id="testTimer">0.0s</span></div>
+      <div id="testType" class="hint" style="margin-top:10px"></div>
+      <div id="testQ" style="font-size:19px;font-weight:bold;margin:10px 0 12px;line-height:1.45;text-align:left"></div>
+      <div id="testOpts" style="display:grid;grid-template-columns:1fr;gap:8px;max-width:420px;margin:0 auto"></div>
+      <div id="testResult" style="min-height:26px;font-size:18px;font-weight:bold;margin-top:10px"></div>
+      <div id="testExplain" style="display:none;text-align:left;background:#f3f7f5;border-left:4px solid var(--accent);padding:10px 12px;margin-top:10px;border-radius:4px;line-height:1.7"></div>
+      <button id="testNextBtn" style="display:none;margin-top:10px;width:100%;max-width:420px">Next question ▶</button>
+      <div class="row" style="justify-content:center;margin-top:12px"><button class="secondary" id="testStopBtn">End round</button></div>
+    </div>
+    <div id="testSummary" style="display:none"></div>
+    <h2>Online-test mistakes by type (saved)</h2>
+    <div id="testMistakes" class="empty">No mistakes yet 🎉</div>
+    <button class="secondary" id="testClear">Clear</button>
+  </div>
+
   <!-- ============ MASTERY ============ -->
   <div class="card" id="masteryCard">
     <h2>My tables</h2>
@@ -345,6 +370,12 @@ const fmt = x => x.toLocaleString("en-US", { maximumFractionDigits: 2 });
 // =====================================================================
 function dayKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function todayRec() { const k = dayKey(new Date()); return store.days[k] || (store.days[k] = { q: 0, rounds: 0 }); }
+// Percentages and online-test questions also count toward the daily question goal
+function addTodayQuestions(n) {
+  const rec = todayRec(), goal = +store.settings.dailyGoal || 100, below = rec.q < goal;
+  rec.q += n;
+  if (below && rec.q >= goal) { store.xp += 100; award("goal"); }
+}
 function daysUntil(iso) {
   if (!iso) return null;
   const [y, m, d] = iso.split("-").map(Number);
@@ -639,7 +670,8 @@ function buildPlan() {
     : { done: false, title: `Weak spots: 1 round`, sub: `~2 min · ${weakN} in your notebook`, run: { mode: "review" }, btn: "Weak spots round" };
 
   // 2) DRILL
-  const reserved = (sug && !tasks[0].done ? LEARN_MAX : qBy("learn")) + (weakTask.done ? qBy("review") : 20);
+  const reserved = (sug && !tasks[0].done ? LEARN_MAX : qBy("learn")) + (weakTask.done ? qBy("review") : 20)
+    + Math.max(PCT_DAILY, pctQsToday()) + Math.max(TEST_DAILY, testQsToday());   // percentages + online test count toward the 100 too
   const target = Math.max(20, Math.ceil((goal - reserved) / 20) * 20);
   const qN = qBy("normal");
   const known = knownFactors().map(f => "×" + f).join(", ");
@@ -653,17 +685,27 @@ function buildPlan() {
     ? { done: true, title: `Percentages: ${pctToday}/${PCT_DAILY} questions`, sub: "Done for today" }
     : { done: false, title: `Percentages: ${pctToday}/${PCT_DAILY} questions`, sub: "~3 min · \"what % is it?\" and \"how much is X%?\" · goal: 8/10 right", pct: pctToday / PCT_DAILY, run: { mode: "pct" }, btn: "Percentages (10 questions)" });
 
-  // 4) EXHIBIT SUMS — one round of 10 exhibit rows (rough totals)
+  // 4) ONLINE TEST — 10 numerical questions in BCG's Assessio style
+  const testToday = testQsToday();
+  tasks.push(testToday >= TEST_DAILY
+    ? { done: true, title: `Online test: ${testToday}/${TEST_DAILY} questions`, sub: "Done for today" }
+    : { done: false, title: `Online test: ${testToday}/${TEST_DAILY} questions`, sub: "~4 min · numerical questions like your BCG test · ~20s each, 5 options", pct: testToday / TEST_DAILY, run: { mode: "test" }, btn: "Online test (10 questions)" });
+
+  // 5) EXHIBIT SUMS — one round of 10 exhibit rows (rough totals)
   const rowsToday = sumsRowsToday();
   tasks.push(rowsToday >= SUMS_DAILY
     ? { done: true, title: `Exhibit sums: ${rowsToday}/${SUMS_DAILY} rows`, sub: "Rough totals of exhibit rows, done for today" }
     : { done: false, title: `Exhibit sums: ${rowsToday}/${SUMS_DAILY} rows`, sub: "~2 min · rough total of each exhibit row · goal: 8/10 right, under 10s each", pct: rowsToday / SUMS_DAILY, run: { mode: "sums" }, btn: "Exhibit sums (10 rows)" });
 
-  // 5) WEAK SPOTS last: clean up today's slips
+  // 6) WEAK SPOTS last: clean up today's slips
   tasks.push(weakTask);
   return tasks;
 }
-const SUMS_DAILY = 10, PCT_DAILY = 10;
+const SUMS_DAILY = 10, PCT_DAILY = 10, TEST_DAILY = 10;
+function testQsToday() {
+  const today = dayKey(new Date());
+  return ((store.test && store.test.rounds) || []).filter(r => dayKey(new Date(r.date)) === today).reduce((a, r) => a + r.n, 0);
+}
 function pctQsToday() {
   const today = dayKey(new Date());
   return ((store.pct && store.pct.rounds) || []).filter(r => dayKey(new Date(r.date)) === today).reduce((a, r) => a + r.n, 0);
@@ -673,7 +715,7 @@ function sumsRowsToday() {
   return ((store.sums && store.sums.rounds) || []).filter(r => dayKey(new Date(r.date)) === today).reduce((a, r) => a + r.n, 0);
 }
 function practisedToday() {
-  return store.sessions.some(s => dayKey(new Date(s.date)) === dayKey(new Date())) || sumsRowsToday() > 0 || pctQsToday() > 0;
+  return store.sessions.some(s => dayKey(new Date(s.date)) === dayKey(new Date())) || sumsRowsToday() > 0 || pctQsToday() > 0 || testQsToday() > 0;
 }
 function renderPlan() {
   const tasks = buildPlan();
@@ -692,6 +734,11 @@ function renderPlan() {
   else { btn.textContent = "🎉 Today's workout is done! (tap for a bonus round)"; btn.onclick = () => runTask({ mode: "normal" }); btn.className = "secondary"; }
 }
 function runTask(run) {
+  if (run.mode === "test") {
+    window.testStart();
+    $("testCard").scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
   if (run.mode === "pct") {
     window.pctStart();
     $("pctCard").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1656,6 +1703,7 @@ window.onload = function () {
       const xp = 5 * pg.right + 15; store.xp += xp;
       extra = ` · <b>+${xp} XP</b>` + (first ? " · 🔥 today counts for your streak" : "");
     }
+    addTodayQuestions(n);
     saveStore();
     renderMotivation();
     el("pctSummary").innerHTML = `<div class="celebrate"><b>Round done:</b> ${pg.right}/${n} right · average ${avg.toFixed(1)}s` +
@@ -1688,6 +1736,312 @@ window.onload = function () {
     document.addEventListener("keydown", e => { if (e.key === "Enter" && pg && pg.locked && e.target !== el("pctAnswer")) { e.preventDefault(); check(); } });
     el("pctStopBtn").addEventListener("click", () => { if (pg) finish(); });
     el("pctClear").addEventListener("click", () => { if (confirm("Clear percentage mistakes?")) { data().mistakes = []; saveStore(); renderMistakes(); } });
+  });
+})();
+</script>
+<script>
+// =====================================================================
+// ONLINE TEST — numerical templates from BCG's Assessio test (her two 80-question simulations)
+// Each template: make() → { type, q, ans (string), opts [5 strings], fast, trap, move }
+// =====================================================================
+(function () {
+  const ROUND_LEN = 10, PACE = 20;
+  let tg = null, tTimer = null;
+  const el = id => document.getElementById(id);
+  const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const N = (x, d = 2) => x.toLocaleString("en-US", { maximumFractionDigits: d });
+  const money = (cur, x) => cur + x.toLocaleString("en-US", { minimumFractionDigits: x % 1 ? 2 : 0, maximumFractionDigits: 2 });
+  function data() { if (!store.test) store.test = { rounds: [], byType: {} }; return store.test; }
+
+  // build 5 unique options: the answer + traps (+ filler near-misses if needed)
+  function options(ans, traps, filler) {
+    const out = [ans];
+    for (const t of traps) if (out.length < 5 && t != null && !out.includes(t)) out.push(t);
+    let i = 0;
+    while (out.length < 5 && i < 40) { const f = filler(i++); if (f != null && !out.includes(f)) out.push(f); }
+    return out.sort(() => Math.random() - 0.5);
+  }
+  const FRACS = { 15: "¼", 30: "½", 45: "¾", 20: "⅓", 40: "⅔" };
+
+  const T = {
+    // ① Speed × time with minutes (72 mph for 2 h 15 min)
+    speedDist() {
+      const s = rnd(18, 45) * 2, h = rnd(1, 4), m = pick([15, 30, 45]);
+      const a = s * (h + m / 60), A = v => N(v, 1) + " miles";
+      return { type: "Speed × time", q: `If a car is travelling at ${s} miles per hour, how far will it travel in ${h} hours and ${m} minutes?`,
+        ans: A(a), opts: options(A(a), [A(s * h), A(s * (h + m / 100)), A(a + s / 4), A(a - 2.5)], i => A(a + (i + 1) * 3)),
+        fast: `${m} min = ${FRACS[m]} hour → ${s} × ${h} = ${N(s * h)}, ${s} × ${FRACS[m]} = ${N(s * m / 60, 1)} → ${N(s * h)} + ${N(s * m / 60, 1)} = <b>${N(a, 1)}</b>`,
+        trap: `${h} h ${m} min is <b>not</b> ${h}.${m} hours (that gives ${N(s * (h + m / 100), 1)}). Also: forgetting the minutes gives ${N(s * h)}.`,
+        move: `Estimate first: ${s} × ${h + (m >= 30 ? 0.5 : 0)} ≈ ${N(s * (h + (m >= 30 ? 0.5 : 0)))} → only one option sits right next to that.` };
+    },
+    // ② Time = distance ÷ speed (28.5 miles at 3.75 mph)
+    walkTime() {
+      const sp = pick([[3, 1], [3.5, 2], [3.75, 4], [4.5, 2], [7.5, 2], [6, 1], [5, 1], [2.5, 2]]);
+      const s = sp[0], k = sp[1];
+      let mins; do { mins = rnd(3, 9) * 60 + pick([6, 12, 18, 24, 36, 42, 48, 54]); } while (Math.abs(s * mins / 60 * 100 - Math.round(s * mins / 60 * 100)) > 1e-6);
+      const d = s * mins / 60, h = Math.floor(mins / 60), mm = mins % 60, A = (hh, m2) => `${hh} hours and ${m2} minute${m2 === 1 ? "" : "s"}`;
+      const dec = Math.round((mins / 60 - h) * 100);
+      return { type: "Time from distance", q: `If you walk at a pace of ${N(s)} miles per hour, how long would it take to walk ${N(d)} miles?`,
+        ans: A(h, mm), opts: options(A(h, mm), [dec < 60 && dec !== mm ? A(h, dec) : null, A(h, mm + 4), A(h, Math.max(0, mm - 6)), A(h, mm + 9)], i => A(h, (mm + 13 + i * 7) % 60)),
+        fast: `distance ÷ speed: ${N(d)} ÷ ${N(s)}` + (k > 1 ? ` → ×${k} both: ${N(d * k)} ÷ ${N(s * k)}` : "") + ` = <b>${N(mins / 60)} hours</b> → 0.${String(dec).padStart(2, "0")} h × 60 = <b>${mm} min</b>`,
+        trap: `${N(mins / 60)} hours is <b>not</b> ${h} h ${dec} min: the decimal part is a share of 60 minutes, not 100.`,
+        move: `All options start with ${h} hours, so only the minutes matter. Find the decimal (.${String(dec).padStart(2, "0")}) and × 60.` };
+    },
+    // ③ Rate × minutes and seconds (256 yards per minute for 3 min 15 s)
+    runRate() {
+      const sec = pick([15, 30, 45]), r = rnd(30, 80) * 4, m = rnd(2, 5);
+      const a = r * (m + sec / 60), A = v => N(v, 1) + " yards";
+      return { type: "Rate × time", q: `If a man runs ${r} yards per minute, how far can he run in ${m} minutes and ${sec} seconds?`,
+        ans: A(a), opts: options(A(a), [A(r * m), A(r * (m + sec / 100)), A(a + r / 10), A(a - 30)], i => A(a + 15 * (i + 2))),
+        fast: `${sec} s = ${FRACS[sec]} minute → ${r} × ${m} = ${N(r * m)}, ${r} × ${FRACS[sec]} = ${N(r * sec / 60)} → <b>${N(a, 1)}</b>`,
+        trap: `${m} min ${sec} s is not ${m}.${sec} minutes (that gives ${N(r * (m + sec / 100), 1)}).`,
+        move: `Because ${r} divides by 4, the answer is a whole number. Throw out options with decimals first.` };
+    },
+    // ④ Part = p% → whole (324,000 down payment = 18%)
+    pctWhole() {
+      const p = pick([12, 14, 15, 16, 18, 24, 25, 35, 40]), W = rnd(6, 30) * 100000, part = W * p / 100, cur = pick(["£", "€"]);
+      const A = v => money(cur, Math.round(v));
+      return { type: "% → total", q: `You pay ${money(cur, part)} as a down payment for a flat, which is ${p}% of the total price. How much does the flat cost?`,
+        ans: A(W), opts: options(A(W), [A(W * 1.02 + 20000), A(part * 100 / (p + 2)), A(W + 150000), A(W - 160000)], i => A(W + (i + 2) * 50000)),
+        fast: `${p}% = ${money(cur, part)} → 1% = ${money(cur, part)} ÷ ${p} = ${money(cur, part / p)} → × 100 = <b>${A(W)}</b>`,
+        trap: `Close options differ by ~5%. Don't round 1% too early. Also watch the currency: the test mixes £ and € on purpose.`,
+        move: `100 ÷ ${p} ≈ ${N(100 / p, 1)}, so the price is about ${N(100 / p, 1)} × ${money(cur, part)} ≈ ${A(part * 100 / p)}. Pick the closest option, then confirm it.` };
+    },
+    // ⑤ Net after tax (earn 6,000, pay 35% tax)
+    netTax() {
+      const inc = rnd(6, 18) * 500, t = pick([15, 20, 22, 25, 30, 35, 40, 45]), cur = pick(["£", "€"]);
+      const a = inc * (100 - t) / 100, A = v => money(cur, v);
+      return { type: "After tax", q: `If you earn ${A(inc)} a month and pay ${t}% in tax, how much do you actually receive?`,
+        ans: A(a), opts: options(A(a), [A(inc * t / 100), A(inc - t * 10), A(a + inc * 0.05), A(a - inc * 0.05)], i => A(a + (i + 2) * 100)),
+        fast: `You keep 100% − ${t}% = ${100 - t}% → 10% = ${A(inc / 10)} → ${100 - t}% = <b>${A(a)}</b>`,
+        trap: `${A(inc * t / 100)} is the <b>tax</b>, not what you receive. That's the classic trap option.`,
+        move: `Answer must be a bit more than half of ${A(inc)} when tax is under 50%. Eliminate anything below ${A(inc / 2)}.` };
+    },
+    // ⑥ Fraction of original price (34,000 = 2/3 of original)
+    fracOrig() {
+      const [a, b] = pick([[2, 3], [3, 4], [3, 5], [4, 5], [5, 8]]), orig = rnd(4, 20) * b * 1000, part = orig * a / b, cur = pick(["£", "€"]);
+      const A = v => money(cur, Math.round(v));
+      return { type: "Fraction → original", q: `You buy a second-hand sailboat for ${A(part)}, which is ${a}/${b} of its original price. What did it cost new?`,
+        ans: A(orig), opts: options(A(orig), [A(part * a / b), A(part * (1 + (b - a) / b)), A(orig + 2 * b * 500), A(orig - b * 1000)], i => A(orig + (i + 3) * 1500)),
+        fast: `${a}/${b} = ${A(part)} → 1/${b} = ${A(part)} ÷ ${a} = ${A(part / a)} → ${b}/${b} = × ${b} = <b>${A(orig)}</b>`,
+        trap: `Adding the missing ${b - a}/${b} <b>of the price you paid</b> gives ${A(part * (1 + (b - a) / b))}, which is wrong. The fraction is of the original, not of what you paid.`,
+        move: `Divide by the top number, multiply by the bottom one: ÷${a} × ${b}. Takes 5 seconds.` };
+    },
+    // ⑦ Bulk purchase (3 paper clips cost 10p — cost of 105?)
+    bulk() {
+      const g = pick([3, 4, 5, 6]), c = pick([10, 12, 15, 20, 25]), k = rnd(15, 45), qty = g * k, pence = k * c;
+      const item = pick(["paper clips", "pencils", "stamps", "screws"]), A = p => "£" + (p / 100).toFixed(2);
+      return { type: "Bulk price", q: `If ${g} ${item} cost ${c}p, how much would it cost to buy ${qty} ${item}?`,
+        ans: A(pence), opts: options(A(pence), [A(pence + 15), A(pence - 30), A(qty * c / (g + 1)), A(pence + 20)], i => A(pence + 5 * (i + 5))),
+        fast: `${qty} ÷ ${g} = ${k} groups → ${k} × ${c}p = ${pence}p = <b>${A(pence)}</b>`,
+        trap: `Don't multiply ${qty} × ${c}p (that's for 1 item at ${c}p). Prices are given per <b>group of ${g}</b>. And 100p = £1.`,
+        move: `Options are close, so check the last digit: ${k} × ${c} ends in ${String(pence).slice(-1)}.` };
+    },
+    // ⑧ Sale saving per unit (6 bags usually £60, on sale £33)
+    saleSave() {
+      const n = pick([4, 5, 6, 8, 10]), u = n * rnd(6, 15), s = u - n * pick([1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5.5]), cur = pick(["£", "€"]);
+      const a = (u - s) / n, A = v => cur + v.toFixed(2);
+      const item = pick(["bags of coffee", "packs of gum", "boxes of tea", "bottles of oil"]);
+      return { type: "Saving per unit", q: `${n} ${item} usually cost ${money(cur, u)}. You buy them on sale for ${money(cur, s)}. How much do you save per item?`,
+        ans: A(a), opts: options(A(a), [A(u - s), A(s / n), A(a + 0.5), A(a - 0.5)], i => A(a + 1 + i * 0.25)),
+        fast: `Total saved = ${money(cur, u)} − ${money(cur, s)} = ${money(cur, u - s)} → ÷ ${n} = <b>${A(a)}</b>`,
+        trap: `${A(u - s)} is the saving on <b>all ${n}</b>, not per item. ${A(s / n)} is the sale price per item.`,
+        move: `Subtract once, divide once. Never work out both unit prices.` };
+    },
+    // ⑨ Packs needed (napkins in packs of 24 for 11 tables × 4 rooms × 6 seats)
+    packs() {
+      const pack = pick([12, 20, 24, 25, 30]), t = rnd(5, 12), r = rnd(2, 5), s = pick([4, 6, 8]);
+      const tot = t * r * s, a = Math.ceil(tot / pack);
+      return { type: "Packs needed", q: `Napkins are sold in packs of ${pack}. You need to set ${t} tables in ${r} rooms, with ${s} seats at each table. How many packs do you need?`,
+        ans: String(a), opts: options(String(a), [String(Math.floor(tot / pack)) === String(a) ? null : String(Math.floor(tot / pack)), String(Math.ceil(t * s / pack)), String(a + 1), String(tot)], i => String(a + 2 + i)),
+        fast: `${t} × ${r} × ${s} = <b>${tot} seats</b> → ÷ ${pack} = ${N(tot / pack)} → round <b>up</b> = <b>${a}</b>`,
+        trap: tot % pack ? `${N(tot / pack)} packs isn't possible: you can't buy part of a pack, so round <b>up</b> (rounding down leaves people without napkins).` : `Don't forget the rooms: ${t} × ${s} only counts one room.`,
+        move: `Multiply the two smallest numbers first (${Math.min(t, r, s)} × next), then the big one.` };
+    },
+    // ⑩ Money left after giving away fractions (£24.75 − 8½ − 2¾)
+    moneyLeft() {
+      const start = rnd(18, 40) + pick([0.25, 0.5, 0.75]), g1 = rnd(3, 9) + pick([0.25, 0.5, 0.75]), g2 = rnd(1, 5) + pick([0.25, 0.5, 0.75]);
+      const a = start - g1 - g2, fr = x => Math.floor(x) + ({ 0.25: "¼", 0.5: "½", 0.75: "¾" })[x % 1], A = v => "£" + v.toFixed(2);
+      return { type: "Money left", q: `If you have £${start.toFixed(2)} and first give away £${fr(g1)}, then give away £${fr(g2)}, how much money do you have left?`,
+        ans: A(a), opts: options(A(a), [A(a + 0.25), A(a - 0.5), A(a + 1), A(a - 0.25)], i => A(a + 0.75 + i * 0.5)),
+        fast: `Add what you give away first: ${fr(g1)} + ${fr(g2)} = ${N(g1 + g2)} → £${start.toFixed(2)} − ${N(g1 + g2)} = <b>${A(a)}</b>`,
+        trap: `The options differ by only 25–50p. ¼ = 0.25 and ¾ = 0.75, so line up the decimals carefully.`,
+        move: `Do the whole pounds and the pennies separately: pounds ${Math.floor(start)} − ${Math.floor(g1)} − ${Math.floor(g2)}, then adjust the quarters.` };
+    },
+    // ⑪ Unit price per kg (1,000 g vanilla £56 — how much for £2,520?)
+    perKg() {
+      const p = rnd(18, 45) * 2, k = rnd(25, 60) + pick([0, 0, 0.5]), spend = p * k, cur = pick(["£", "€"]);
+      const A = v => (v % 1 ? `${Math.floor(v)}½` : v) + " kg";
+      return { type: "How much can you buy", q: `If 1,000 grams of vanilla cost ${money(cur, p)}, how much vanilla can you buy for ${money(cur, spend)}?`,
+        ans: A(k), opts: options(A(k), [A(k + 1), A(k - 2), A(k + 3.5), A(k - 4.5)], i => A(k + 5 + i)),
+        fast: `1,000 g = 1 kg → ${money(cur, spend)} ÷ ${money(cur, p)} per kg = <b>${A(k)}</b>` + (p % 2 === 0 ? ` (halve both: ${N(spend / 2)} ÷ ${p / 2})` : ""),
+        trap: `"1,000 grams" is just 1 kg, a distraction. The test also switches £/€ between question and options to unsettle you.`,
+        move: `Multiply back: price × option must equal ${money(cur, spend)}. Test the middle option first.` };
+    },
+    // ⑫ Work-rate (9 children build 68 sandcastles in 7 hours → how many children for ½ hour?)
+    workRate() {
+      const n = rnd(3, 12), h = rnd(2, 9), h2 = pick([0.5, 1, 2].filter(x => x < h && (n * h / x) % 1 === 0));
+      const a = n * h / h2, things = rnd(30, 90);
+      const hTxt = h2 === 0.5 ? "½ hour" : h2 + (h2 === 1 ? " hour" : " hours");
+      return { type: "Work rate", q: `${n} children can build ${things} sandcastles in ${h} hours. How many children would it take to build the same number of sandcastles in ${hTxt}?`,
+        ans: String(a), opts: options(String(a), [String(n * h), String(things), String(Math.round(n / h2 + h)), String(a + n)], i => String(a + 2 * (i + 1))),
+        fast: `Total work = ${n} children × ${h} h = <b>${n * h} child-hours</b> → ÷ ${hTxt} = <b>${a}</b>`,
+        trap: `The ${things} sandcastles don't matter: it's the same job. ${n * h} is the child-hours, not the number of children.`,
+        move: `Less time → more children. The answer must be bigger than ${n * h} when the new time is under 1 hour.` };
+    },
+    // ⑬ The classic trap (flower + vase = £110, vase £100 more)
+    sumDiff() {
+      const d = rnd(4, 20) * 10, small = pick([2.5, 5, 10, 15, 20, 25]), tot = d + 2 * small, cur = pick(["£", "€"]);
+      const A = v => money(cur, v), [x, y] = pick([["a flower", "a vase"], ["a pen", "a notebook"], ["a ball", "a bat"]]);
+      return { type: "Sum & difference trap", q: `${x[0].toUpperCase() + x.slice(1)} and ${y} cost ${A(tot)} together. The ${y.split(" ")[1]} costs ${A(d)} more than the ${x.split(" ")[1]}. How much does the ${x.split(" ")[1]} cost?`,
+        ans: A(small), opts: options(A(small), [A(tot - d), A(d), A(tot), A(tot + d)], i => A(small * 3 + i)),
+        fast: `Take away the difference, then split in two: (${A(tot)} − ${A(d)}) ÷ 2 = <b>${A(small)}</b>`,
+        trap: `The famous wrong answer is ${A(tot - d)}. Then the other item would cost ${A(tot - d + d)} and together ${A(tot - d + tot)}, too much.`,
+        move: `Always check: small + (small + ${A(d)}) = ${A(tot)}? Two seconds, and it saves the point.` };
+    },
+    // ⑭ Missing number in an addition (278,454 + … = 339,455)
+    missingAdd() {
+      const a = rnd(150000, 699999), x = rnd(20, 90) * 1000 + pick([1, 11, 101, 201]), b = a + x;
+      const A = v => String(v);
+      return { type: "Missing number", q: `What number is missing? ${a.toLocaleString("en-US")} + … = ${b.toLocaleString("en-US")}`,
+        ans: A(x), opts: options(A(x), [A(x + 10000), A(x - 10000), A(x + 100), A(x + 200)], i => A(x + 1000 * (i + 1))),
+        fast: `Subtract in chunks: ${b.toLocaleString("en-US")} − ${a.toLocaleString("en-US")}. Thousands first: ${Math.floor(b / 1000)} − ${Math.floor(a / 1000)} = ${Math.floor(b / 1000) - Math.floor(a / 1000)} thousand, then the last 3 digits: ${b % 1000} − ${a % 1000} → <b>${x.toLocaleString("en-US")}</b>`,
+        trap: `The options differ in just one digit (10,000 or 100 apart). Carry errors are the trap here, so check the last 3 digits.`,
+        move: `Look only at the last digits first: ${a % 10} + ? ends in ${b % 10} → the answer ends in ${x % 10}. That alone often leaves 2 options.` };
+    },
+    // ⑮ Fraction division (½ ÷ 5/7)
+    fracDiv() {
+      const gcd = (p, q) => q ? gcd(q, p % q) : p, sf = (p, q) => { const g = gcd(p, q); return `${p / g}/${q / g}`; };
+      const [a, b] = pick([[1, 2], [1, 3], [2, 3], [3, 4], [1, 4]]), [c, d] = pick([[5, 7], [3, 5], [2, 9], [4, 5], [5, 6]]);
+      const ans = sf(a * d, b * c);
+      return { type: "Fraction division", q: `What is ${a}/${b} divided by ${c}/${d}?`,
+        ans, opts: options(ans, [sf(a * c, b * d), sf(b * c, a * d), sf(a + c, b + d), sf(a * d + 1, b * c)], i => sf(a * d + i + 2, b * c)),
+        fast: `Flip the second fraction and multiply: ${a}/${b} × ${d}/${c} = ${a * d}/${b * c} = <b>${ans}</b>`,
+        trap: `${sf(a * c, b * d)} is ${a}/${b} <b>times</b> ${c}/${d}. You forgot to flip.`,
+        move: `Dividing by something smaller than 1 makes the result <b>bigger</b> than ${a}/${b}, so eliminate the small options.` };
+    },
+    // ⑯ Simple equation (3x + 8 + x − 3x = 13)
+    equation() {
+      const p = rnd(2, 5), q = rnd(1, 4), x = rnd(2, 9), c = rnd(2, 12), e = (p + q - p) * x + c;
+      return { type: "Equation", q: `If ${p}x + ${c} + ${q}x − ${p}x = ${e}, what is x?`,
+        ans: String(x), opts: options(String(x), [String(c), String(e), String(e - c), String(x + 1)], i => String(x + 3 + i)),
+        fast: `The ${p}x and −${p}x cancel → ${q === 1 ? "" : q}x + ${c} = ${e} → ${q === 1 ? "" : q}x = ${e - c} → x = <b>${x}</b>`,
+        trap: `It looks long, but it's built to cancel out. Don't solve it step by step.`,
+        move: `Try the options: plug in the middle-sized number. Often faster than algebra.` };
+    },
+    // ⑰ Cube root (∛64)
+    cubeRoot() {
+      const n = rnd(2, 10), c = n ** 3;
+      return { type: "Cube root", q: `What is the cube root of ${c}?`,
+        ans: String(n), opts: options(String(n), [String(n * 2), String(n * n), String(c / 2), String(n + 2)], i => String(n + 3 + i)),
+        fast: `Which number × itself × itself = ${c}? ${n} × ${n} × ${n} = <b>${c}</b> → <b>${n}</b>`,
+        trap: `${n * n} is the square, not the cube root. ${c / 2} is just half.`,
+        move: `Learn the cubes by heart: 8, 27, 64, 125, 216, 343, 512, 729, 1,000. Then it's instant.` };
+    }
+  };
+  const KEYS = Object.keys(T);
+
+  // ---------- round flow ----------
+  function start() {
+    // pick 10 different templates, weighted toward the ones she gets wrong
+    const by = data().byType;
+    const w = KEYS.map(k => ({ k, w: 1 + 2 * ((by[k] && by[k].wrong) || 0) }));
+    const chosen = [];
+    while (chosen.length < ROUND_LEN) {
+      const pool = w.filter(x => !chosen.includes(x.k));
+      let r = Math.random() * pool.reduce((a, x) => a + x.w, 0);
+      for (const x of pool) { r -= x.w; if (r <= 0) { chosen.push(x.k); break; } }
+    }
+    tg = { i: 0, right: 0, times: [], locked: false, q: null, keys: chosen };
+    el("testIdle").style.display = "none"; el("testSummary").style.display = "none"; el("testPlay").style.display = "block";
+    next();
+  }
+  function next() {
+    if (tg.i >= ROUND_LEN) return finish();
+    tg.key = tg.keys[tg.i]; tg.q = T[tg.key](); tg.locked = false; tg.t0 = Date.now();
+    el("testProgress").textContent = `Question ${tg.i + 1} of ${ROUND_LEN} · ${tg.right} right`;
+    el("testType").textContent = tg.q.type;
+    el("testQ").innerHTML = tg.q.q;
+    el("testOpts").innerHTML = tg.q.opts.map((o, i) => `<button class="opt" data-o="${i}"><span class="k">${"ABCDE"[i]}</span> ${o}</button>`).join("");
+    el("testResult").textContent = ""; el("testResult").className = "";
+    el("testExplain").style.display = "none"; el("testNextBtn").style.display = "none";
+    clearInterval(tTimer);
+    tTimer = setInterval(() => {
+      const s = (Date.now() - tg.t0) / 1000;
+      el("testTimer").textContent = s.toFixed(1) + "s";
+      el("testTimer").className = s > PACE ? "slow" : "";
+    }, 100);
+  }
+  function answer(idx) {
+    if (!tg || tg.locked) return;
+    clearInterval(tTimer);
+    const sec = (Date.now() - tg.t0) / 1000, q = tg.q, chosen = q.opts[idx], ok = chosen === q.ans, slow = sec > PACE;
+    tg.locked = true; tg.times.push(sec); if (ok) tg.right++;
+    [...el("testOpts").children].forEach((b, i) => {
+      if (q.opts[i] === q.ans) b.classList.add("correct");
+      else if (i === idx) b.classList.add("wrong");
+    });
+    el("testResult").textContent = ok ? `✅ Right · ${sec.toFixed(1)}s` + (slow ? ` (test pace is ~${PACE}s)` : "") : `❌ The answer is ${q.ans}`;
+    el("testResult").className = ok ? (slow ? "slow" : "ok") : "bad";
+    el("testExplain").innerHTML = `<b>⚡ Fast way:</b> ${q.fast}<br><b>🪤 The trap:</b> ${q.trap}<br><b>⏱ 20-second move:</b> ${q.move}`;
+    el("testExplain").style.display = "block";
+    el("testNextBtn").style.display = "block"; el("testNextBtn").focus();
+    const by = data().byType, s = by[tg.key] || (by[tg.key] = { type: q.type, right: 0, wrong: 0, slow: 0 });
+    if (!ok) s.wrong++; else { s.right++; if (slow) s.slow++; }
+    saveStore(); renderMistakes();
+  }
+  function finish() {
+    clearInterval(tTimer);
+    const n = tg.times.length;
+    el("testPlay").style.display = "none"; el("testIdle").style.display = "block";
+    if (n === 0) { tg = null; return; }
+    const avg = tg.times.reduce((a, b) => a + b, 0) / n, d = data();
+    d.rounds.unshift({ date: new Date().toISOString(), n, right: tg.right, avg: Math.round(avg * 10) / 10 });
+    d.rounds = d.rounds.slice(0, 30);
+    let extra = "";
+    if (n >= 5) {
+      const rec = todayRec(), first = rec.rounds === 0;
+      rec.rounds++;
+      const xp = 5 * tg.right + 15; store.xp += xp;
+      extra = ` · <b>+${xp} XP</b>` + (first ? " · 🔥 today counts for your streak" : "");
+    }
+    addTodayQuestions(n);
+    saveStore();
+    renderMotivation();
+    el("testSummary").innerHTML = `<div class="celebrate"><b>Round done:</b> ${tg.right}/${n} right · average ${avg.toFixed(1)}s` +
+      (tg.right >= n * 0.8 && avg <= PACE ? " — test-ready pace 🎯" : ` — goal: 8/10 right at ~${PACE}s each`) + extra + `</div>`;
+    const nb = document.createElement("button");
+    nb.textContent = el("nextBtn").textContent.replace("▶ Start:", "▶ Next:");
+    nb.className = el("nextBtn").className;
+    nb.style.cssText = "width:100%;font-size:17px;padding:11px;margin-top:8px";
+    nb.onclick = () => { el("testSummary").style.display = "none"; el("nextBtn").onclick(); };
+    el("testSummary").appendChild(nb);
+    el("testSummary").style.display = "block";
+    tg = null;
+  }
+  function renderMistakes() {
+    const by = data().byType, rows = Object.values(by).filter(s => s.wrong + s.slow > 0).sort((a, b) => (b.wrong * 2 + b.slow) - (a.wrong * 2 + a.slow));
+    if (!rows.length) { el("testMistakes").className = "empty"; el("testMistakes").textContent = "No mistakes yet 🎉"; return; }
+    el("testMistakes").className = "";
+    el("testMistakes").innerHTML = `<p class="hint">Types you miss come up more often in your rounds.</p><table><tr><th>Question type</th><th>Wrong</th><th>Slow</th><th>Right</th></tr>` +
+      rows.map(s => `<tr><td>${s.type}</td><td class="bad">${s.wrong}</td><td class="slow">${s.slow}</td><td>${s.right}</td></tr>`).join("") + "</table>";
+  }
+
+  window.testStart = () => { if (!tg) start(); };
+  window.testT = T;
+  window.addEventListener("load", () => {
+    renderMistakes();
+    el("testStartBtn").addEventListener("click", start);
+    el("testOpts").addEventListener("click", e => { const b = e.target.closest(".opt"); if (b) answer(+b.dataset.o); });
+    el("testNextBtn").addEventListener("click", () => { if (tg && tg.locked) { tg.i++; next(); } });
+    document.addEventListener("keydown", e => {
+      if (!tg) return;
+      if (!tg.locked && /^[1-5a-eA-E]$/.test(e.key)) { const i = /\d/.test(e.key) ? +e.key - 1 : "abcde".indexOf(e.key.toLowerCase()); answer(i); }
+      else if (tg.locked && e.key === "Enter") { e.preventDefault(); tg.i++; next(); }
+    });
+    el("testStopBtn").addEventListener("click", () => { if (tg) finish(); });
+    el("testClear").addEventListener("click", () => { if (confirm("Clear online-test mistakes?")) { data().byType = {}; saveStore(); renderMistakes(); } });
   });
 })();
 </script>
