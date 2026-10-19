@@ -1581,59 +1581,34 @@ window.onload = function () {
     }
     return null;
   }
-  // ---------- "What % is it?" explained step by step, the way you'd do it in your head ----------
-  // round to an easy number: 83 → 80, 530 → 500, 8.3 → 8
-  function easy(x) {
-    if (x < 10) return Math.max(1, Math.round(x));
-    const mag = Math.pow(10, Math.floor(Math.log10(x)));
-    return Math.round(x / mag) * mag;
-  }
-  // k × 83 shown as k × 80 + k × 3 (the multiplication split you already know)
-  function mulSplit(k, t) {
-    const a = t >= 10 ? Math.floor(t / 10) * 10 : Math.floor(t), b = Math.round((t - a) * 100) / 100;
-    return b === 0 || a === 0 ? `${k} × ${F(t)} = ${F(k * t)}` : `${k} × ${F(t)} = ${k} × ${F(a)} + ${k} × ${F(b)} = ${F(k * a)} + ${F(k * b)} = ${F(k * t)}`;
-  }
-  // Count how many % a number X is of W: 10%s first, then the leftover in 1%s
-  function countPct(X, W, label) {
-    const T = W / 10, O = W / 100, nT = easy(T);
-    const k = Math.floor(X / T + 1e-9), L = Math.round((X - k * T) * 100) / 100, m = L / O;
-    let s = `<b>① How many 10%s fit in ${F(X)}?</b> 10% of ${F(W)} = ${F(T)}<br>`;
-    if (k === 0) s += `&nbsp;&nbsp;→ ${F(X)} is smaller than one 10% (${F(T)}) → <b>0</b> so far<br>`;
-    else {
-      const g = Math.max(1, Math.floor(X / nT));
-      s += `&nbsp;&nbsp;→ <i>don't divide, multiply up:</i> round ${F(T)} to <b>${F(nT)}</b>: ${F(nT)} × ${g} = ${F(nT * g)}, ${F(nT)} × ${g + 1} = ${F(nT * (g + 1))}`;
-      s += nT * (g + 1) > X ? ` (too much) → about <b>${g}</b><br>` : `<br>`;
-      if (g > k)        // the easy number was too small, so the guess overshoots: correct it
-        s += `&nbsp;&nbsp;→ check with the real ${F(T)}: ${mulSplit(g, T)} ✗ too much → so only <b>${k}</b>: ${mulSplit(k, T)} ✓ → <b>${k * 10}%</b><br>`;
-      else if (g < k)   // the easy number was too big, so one more fits
-        s += `&nbsp;&nbsp;→ check with the real ${F(T)}: ${mulSplit(k, T)} ✓ still fits (the real 10% is smaller) → <b>${k}</b> → <b>${k * 10}%</b><br>`;
-      else
-        s += `&nbsp;&nbsp;→ check with the real ${F(T)}: ${mulSplit(k, T)} ✓ fits` + ((k + 1) * T > X ? ` (${k + 1} × ${F(T)} = ${F((k + 1) * T)} is too much)` : "") + ` → <b>${k * 10}%</b><br>`;
-    }
-    const nO = easy(O), r = Math.max(0, Math.round(L / nO));
-    s += `<b>② The leftover, in 1%s:</b> ${F(X)} − ${F(k * T)} = <b>${F(L)}</b> · 1% = ${F(O, 2)}` + (nO !== O ? ` ≈ ${F(nO)}` : "") + `<br>` +
-      (L < O ? `&nbsp;&nbsp;→ ${F(L)} is less than one 1% → just <b>${F(m)}</b>, ignore it<br>`
-             : `&nbsp;&nbsp;→ how many ${F(nO)}s in ${F(L)}? ${F(nO)} × ${r} = ${F(nO * r)} → about <b>${r}</b>` + (nO !== O ? ` <span class="how">(exactly ${F(L)} ÷ ${F(O, 2)} = ${F(m)})</span>` : "") + `<br>`);
-    return { html: s, pct: k * 10 + Math.round(m * 10) / 10, k, m: Math.round(m * 10) / 10 };
-  }
+  // ---------- "What % is it?" — compact, mental-math friendly ----------
+  // Walk the 10% steps (down from 100% if the part is over half, up from 0% if not), then count the leftover 1%s.
   function shareMethod(q) {
-    const { P, W } = q, ans = Math.round(q.exact);
-    const half = W / 2, cmp = P > half * 1.05 ? "more than half" : P < half * 0.95 ? "less than half" : "about half";
-    let s = "";
-    if (P > half) {
-      // Faster: count what's MISSING. Smaller number → easier.
-      const M = W - P, c = countPct(M, W);
-      s += `<b>⚡ ${F(P)} is more than half, so count what's <u>missing</u> instead (a smaller number = easier):</b><br>` +
-           `<b>⓪ Missing:</b> ${F(W)} − ${F(P)} = <b>${F(M)}</b><br>` + c.html +
-           `<b>③ Missing ≈ ${c.k * 10}% + ${F(c.m)}% = ${F(c.pct)}%</b> → 100% − ${F(c.pct)}% ≈ <b>${ans}%</b><br>`;
+    const { P, W } = q, T = W / 10, O = W / 100;
+    const k = Math.floor(P / T + 1e-9), L = Math.round((P - k * T) * 100) / 100;
+    let walk;
+    if (k === 0) walk = `${F(P)} is less than one 10% (${F(T)}) → <b>0%</b>`;
+    else if (P > W / 2) {
+      const steps = [`${F(W)}`];
+      for (let j = 9; j >= k; j--) steps.push(`${F(j * T)} (${j * 10}%)`);
+      walk = `walk down: ${steps.join(" → ")} ✓ below ${F(P)} → <b>${k * 10}%</b>`;
     } else {
-      const c = countPct(P, W);
-      s += c.html + `<b>③ Add up:</b> ${c.k * 10}% + ${F(c.m)}% ≈ <b>${ans}%</b><br>`;
+      const steps = [];
+      for (let j = 1; j <= k; j++) steps.push(`${F(j * T)} (${j * 10}%)`);
+      walk = `walk up: ${steps.join(" → ")} ✓ still below ${F(P)} → <b>${k * 10}%</b>`;
     }
-    s += `<span class="how">Check: ${F(P)} is ${cmp} of ${F(W)} ✓</span><br>`;
-    const fast = friendlyDivide(P, W / 100);
-    if (fast) s += `<span class="how">⚡ Shortcut here, because 1% is a round number (${F(W / 100, 2)}): ${fast}%</span><br>`;
-    s += `<span class="how">Say it: "${F(P)} out of ${F(W)} is roughly ${ans} percent, ${cmp}."</span><br>`;
+    const nO = Number.isInteger(O) ? O : Math.max(1, Math.round(O));
+    const r = Math.round(L / O);
+    const left = L < O / 2 ? `${F(L)} · 1% = ${F(O, 2)} → less than half of 1% → <b>0%</b>`
+      : `${F(L)} · 1% = ${F(O, 2)}${nO !== O ? ` ≈ ${F(nO)}` : ""} → ${F(nO)} × ${r} = ${F(nO * r)} ≈ ${F(L)} → <b>${r}%</b>`;
+    const tot = k * 10 + r, half = W / 2;
+    const cmp = P > half * 1.05 ? "more than half" : P < half * 0.95 ? "less than half" : "about half";
+    let s = `<b>① Count the 10%s:</b> 10% of ${F(W)} = ${F(T)} → ${walk}<br>` +
+            `<b>② Leftover in 1%s:</b> ${F(P)} − ${F(k * T)} = ${left}<br>` +
+            `<b>③ Add up:</b> ${k * 10}% + ${r}% ≈ <b>${tot}%</b> (check: ${cmp} ✓)<br>`;
+    const fast = friendlyDivide(P, O);
+    if (fast) s += `<span class="how">⚡ Shortcut (1% is a round number): ${fast}%</span><br>`;
+    s += `<span class="how">Say it: "${F(P)} out of ${F(W)} is roughly ${tot} percent, ${cmp}."</span><br>`;
     return s;
   }
   function ofMethod(q) {
@@ -1658,7 +1633,7 @@ window.onload = function () {
   function sheetHTML() {
     const rows = [["1/2", 50], ["1/3", 33.3], ["2/3", 66.7], ["1/4", 25], ["3/4", 75], ["1/5", 20], ["1/6", 16.7], ["1/7", 14.3],
                   ["1/8", 12.5], ["3/8", 37.5], ["1/9", 11.1], ["1/10", 10], ["1/12", 8.3], ["1/20", 5], ["1/25", 4], ["1/50", 2]];
-    return `<p><b>The 3 steps for "What % is it?"</b> (work for any numbers)<br>⓪ <b>More than half? Count what's missing instead</b>: 705 of 830 → missing 125 → much easier.<br>① <b>Count the 10%s by multiplying, not dividing</b>: round 10% to an easy number (83 → 80) and go up: 80, 160, 240… until you pass the number.<br>② <b>Leftover in 1%s</b>: 1% = whole ÷ 100, rounded (8.3 → 8). How many 8s in the leftover? Always a small number, 0–9.<br>③ <b>Add up</b> (or do 100% − missing), then check against half.<br>⚡ If 1% is a round number (50, 25, 20…), go direct: part ÷ 1%. ÷50 → double both → ÷100.</p>` +
+    return `<p><b>The 3 steps for "What % is it?"</b> (work for any numbers)<br>① <b>Count the 10%s</b>: 10% = whole without its last digit (830 → 83). Walk the steps, don't divide: <b>down from 100%</b> if the part is over half (830 → 747 → 664), <b>up from 0%</b> if not (83 → 166 → 249…). Stop when you pass the part.<br>② <b>Leftover in 1%s</b>: 1% = 10% ÷ 10, rounded (8.3 → 8). How many 8s in the leftover? Always 0–9.<br>③ <b>Add up</b>, then check against half.<br>⚡ If 1% is a round number (50, 25, 20…), go direct: part ÷ 1%. ÷50 → double both → ÷100.</p>` +
       `<p><b>For "How much is X%?":</b> build it from 10% (÷10), 5% (half of 10%), 1% (÷100), half and quarter. 35% = 30% + 5%. 45% = 50% − 5%.</p>` +
       `<p><b>Fractions ↔ %</b> (learn these by heart: they turn divisions into recognition)</p>` +
       `<div class="sheetgrid">${rows.map(([f, v]) => `<div>${f} = <b>${F(v)}%</b></div>`).join("")}</div>` +
