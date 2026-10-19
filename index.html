@@ -620,14 +620,30 @@ function buildPlan() {
   tasks.push(qN >= target
     ? { done: true, title: `Normal rounds: ${qN}/${target} questions`, sub: `Tables: ${known}` }
     : { done: false, title: `Normal rounds: ${qN}/${target} questions`, sub: `~${Math.ceil((target - qN) / 20) * 3} min · rounds of 20 · tables: ${known}`, pct: qN / target, run: { mode: "normal" }, btn: `Normal round (${Math.ceil((target - qN) / 20)} left)` });
+
+  // 3) EXHIBIT SUMS — one round of 10 exhibit rows (rough totals)
+  const rowsToday = sumsRowsToday();
+  tasks.push(rowsToday >= SUMS_DAILY
+    ? { done: true, title: `Exhibit sums: ${rowsToday}/${SUMS_DAILY} rows`, sub: "Rough totals of exhibit rows, done for today" }
+    : { done: false, title: `Exhibit sums: ${rowsToday}/${SUMS_DAILY} rows`, sub: "~2 min · rough total of each exhibit row · goal: 8/10 right, under 10s each", pct: rowsToday / SUMS_DAILY, run: { mode: "sums" }, btn: "Exhibit sums (10 rows)" });
+
+  // 4) WEAK SPOTS last: clean up today's slips
   tasks.push(weakTask);
   return tasks;
+}
+const SUMS_DAILY = 10;
+function sumsRowsToday() {
+  const today = dayKey(new Date());
+  return ((store.sums && store.sums.rounds) || []).filter(r => dayKey(new Date(r.date)) === today).reduce((a, r) => a + r.n, 0);
+}
+function practisedToday() {
+  return store.sessions.some(s => dayKey(new Date(s.date)) === dayKey(new Date())) || sumsRowsToday() > 0;
 }
 function renderPlan() {
   const tasks = buildPlan();
   const next = tasks.find(t => !t.done);
   const isRest = new Date().getDay() === +store.settings.restDay;
-  const anyToday = store.sessions.some(s => dayKey(new Date(s.date)) === dayKey(new Date()));
+  const anyToday = practisedToday();
   let head = isRest && !anyToday ? `<p class="hint">😴 Rest day: the plan is optional today and your streak is safe.</p>` : "";
   $("plan").innerHTML = head + tasks.map((t, i) => `
     <div class="task ${t.done ? "done" : ""} ${t === next ? "next" : ""}">
@@ -640,6 +656,11 @@ function renderPlan() {
   else { btn.textContent = "🎉 Today's workout is done! (tap for a bonus round)"; btn.onclick = () => runTask({ mode: "normal" }); btn.className = "secondary"; }
 }
 function runTask(run) {
+  if (run.mode === "sums") {             // the exhibit-sums zone has its own card and its own start
+    window.sumsStart();
+    $("sumsCard").scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
   document.querySelector(`input[name="mode"][value="${run.mode}"]`).checked = true;
   if (run.mode === "learn") {
     renderMastery();
@@ -1373,9 +1394,26 @@ window.onload = function () {
     const d = data();
     d.rounds.unshift({ date: new Date().toISOString(), n, right: sg.right, avg: Math.round(avg * 10) / 10 });
     d.rounds = d.rounds.slice(0, 20);
+    // Link to the daily plan: a round of 5+ rows counts for the streak, and earns XP
+    let extra = "";
+    if (n >= 5) {
+      const rec = todayRec(), first = rec.rounds === 0;
+      rec.rounds++;
+      const xp = 5 * sg.right + 15;
+      store.xp += xp;
+      extra = ` · <b>+${xp} XP</b>` + (first ? ` · 🔥 today counts for your streak` : "");
+    }
     saveStore();
+    renderMotivation();
     el("sumsSummary").innerHTML = `<div class="celebrate"><b>Round done:</b> ${sg.right}/${n} within ±10% · average ${avg.toFixed(1)}s per row` +
-      (avg <= 10 && sg.right >= n * 0.8 ? " — exhibit-ready pace 🎯" : ` — goal: 8/10 right at under 10s`) + `</div>`;
+      (avg <= 10 && sg.right >= n * 0.8 ? " — exhibit-ready pace 🎯" : ` — goal: 8/10 right at under 10s`) + extra + `</div>`;
+    // same "Next" button as the multiplication rounds
+    const nb = document.createElement("button");
+    nb.textContent = el("nextBtn").textContent.replace("▶ Start:", "▶ Next:");
+    nb.className = el("nextBtn").className;
+    nb.style.cssText = "width:100%;font-size:17px;padding:11px;margin-top:8px";
+    nb.onclick = () => { el("sumsSummary").style.display = "none"; el("nextBtn").onclick(); };
+    el("sumsSummary").appendChild(nb);
     el("sumsSummary").style.display = "block";
     sg = null;
   }
@@ -1386,6 +1424,7 @@ window.onload = function () {
     el("sumsMistakes").innerHTML = "<table><tr><th>Row</th><th>You</th><th>Exact</th><th>Off</th><th>Time</th></tr>" +
       m.slice(0, 10).map(x => `<tr><td>${x.nums.join(" + ")}</td><td>${x.ans.toLocaleString("en-US")}</td><td>${x.exact.toLocaleString("en-US")}</td><td class="${x.slowOnly ? "slow" : "bad"}">${x.pct}%</td><td>${x.sec}s</td></tr>`).join("") + "</table>";
   }
+  window.sumsStart = () => { if (!sg) start(); };   // used by Today's plan
   window.addEventListener("load", () => {
     renderMistakes();
     el("sumsStartBtn").addEventListener("click", start);
