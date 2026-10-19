@@ -1585,28 +1585,35 @@ window.onload = function () {
   // Walk the 10% steps (down from 100% if the part is over half, up from 0% if not), then count the leftover 1%s.
   function shareMethod(q) {
     const { P, W } = q, T = W / 10, O = W / 100;
-    const k = Math.floor(P / T + 1e-9), L = Math.round((P - k * T) * 100) / 100;
+    const k = Math.floor(P / T + 1e-9);
+    // stop at the NEAREST 10% step — even if it's just above the number — then fix the small gap
+    const up = (k + 1) * T - P, down = P - k * T;
+    const st = up < down ? k + 1 : k, above = st * T > P;
+    const fmtStep = j => `${F(j * T)} (${j * 10}%)`;
     let walk;
-    if (k === 0) walk = `${F(P)} is less than one 10% (${F(T)}) → <b>0%</b>`;
-    else if (P > W / 2) {
+    if (P > W / 2) {                         // more than half: walk down from 100%
       const steps = [`${F(W)}`];
-      for (let j = 9; j >= k; j--) steps.push(`${F(j * T)} (${j * 10}%)`);
-      walk = `walk down: ${steps.join(" → ")} ✓ below ${F(P)} → <b>${k * 10}%</b>`;
-    } else {
+      for (let j = 9; j >= st; j--) steps.push(fmtStep(j));
+      walk = `walk down: ${steps.join(" → ")}`;
+    } else if (st === 0) walk = `${F(P)} is closer to 0 than to ${F(T)} (10%)`;
+    else {                                    // less than half: walk up from 0%
       const steps = [];
-      for (let j = 1; j <= k; j++) steps.push(`${F(j * T)} (${j * 10}%)`);
-      walk = `walk up: ${steps.join(" → ")} ✓ still below ${F(P)} → <b>${k * 10}%</b>`;
+      for (let j = 1; j <= st; j++) steps.push(fmtStep(j));
+      walk = `walk up: ${steps.join(" → ")}`;
     }
+    walk += st === 0 ? ` → start from <b>0%</b>` : above ? ` ← just <b>above</b> ${F(P)}, the nearest step → <b>${st * 10}%</b>` : ` ← just below ${F(P)}, the nearest step → <b>${st * 10}%</b>`;
+    const G = Math.round(Math.abs(P - st * T) * 100) / 100;
     const nO = Number.isInteger(O) ? O : Math.max(1, Math.round(O));
-    const r = Math.round(L / O);
+    const r = Math.round(G / O);
     const oneTxt = `1% of ${F(W)} = ${F(O, 2)}${nO !== O ? ` ≈ ${F(nO)}` : ""}`;
-    const left = L < O / 2 ? `${F(L)} left. ${oneTxt} → ${F(L)} is less than half of that → <b>0%</b>`
-      : `${F(L)} left. ${oneTxt} → how many ${F(nO)}s in ${F(L)}? ${F(nO)} × ${r} = ${F(nO * r)} ≈ ${F(L)} → <b>${r}%</b>`;
-    const tot = k * 10 + r, half = W / 2;
+    const gapTxt = above ? `${F(st * T)} − ${F(P)} = ${F(G)} too much` : `${F(P)} − ${F(st * T)} = ${F(G)} left`;
+    const left = G < O / 2 ? `${gapTxt}. ${oneTxt} → less than half of that → <b>0%</b>`
+      : `${gapTxt}. ${oneTxt} → how many ${F(nO)}s in ${F(G)}? ${F(nO)} × ${r} = ${F(nO * r)} ≈ ${F(G)} → <b>${r}%</b>`;
+    const tot = above ? st * 10 - r : st * 10 + r, half = W / 2;
     const cmp = P > half * 1.05 ? "more than half" : P < half * 0.95 ? "less than half" : "about half";
-    let s = `<b>① Count the 10%s:</b> 10% of ${F(W)} = ${F(T)} → ${walk}<br>` +
-            `<b>② Leftover in 1%s:</b> ${F(P)} − ${F(k * T)} = ${left}<br>` +
-            `<b>③ Add up:</b> ${k * 10}% + ${r}% ≈ <b>${tot}%</b> (check: ${cmp} ✓)<br>`;
+    let s = `<b>① Nearest 10% step:</b> 10% of ${F(W)} = ${F(T)} → ${walk}<br>` +
+            `<b>② The gap in 1%s:</b> ${left}<br>` +
+            `<b>③ ${above ? "Subtract" : "Add up"}:</b> ${st * 10}% ${above ? "−" : "+"} ${r}% ≈ <b>${tot}%</b> (check: ${cmp} ✓)<br>`;
     s += `<span class="how">Say it: "${F(P)} out of ${F(W)} is roughly ${tot} percent, ${cmp}."</span><br>`;
     return s;
   }
@@ -1632,11 +1639,11 @@ window.onload = function () {
   function sheetHTML() {
     const rows = [["1/2", 50], ["1/3", 33.3], ["2/3", 66.7], ["1/4", 25], ["3/4", 75], ["1/5", 20], ["1/6", 16.7], ["1/7", 14.3],
                   ["1/8", 12.5], ["3/8", 37.5], ["1/9", 11.1], ["1/10", 10], ["1/12", 8.3], ["1/20", 5], ["1/25", 4], ["1/50", 2]];
-    return `<p><b>The 3 steps for "What % is it?"</b> (work for any numbers)<br>① <b>Count the 10%s</b>: 10% = whole without its last digit (830 → 83). Walk the steps, don't divide: <b>down from 100%</b> if the part is over half (830 → 747 → 664), <b>up from 0%</b> if not (83 → 166 → 249…). Stop when you pass the part.<br>② <b>Leftover in 1%s</b>: 1% = 10% ÷ 10, rounded (8.3 → 8). How many 8s in the leftover? Always 0–9.<br>③ <b>Add up</b>, then check against half.</p>` +
+    return `<p><b>The 3 steps for "What % is it?"</b> (work for any numbers)<br>① <b>Nearest 10% step</b>: 10% = whole without its <b>last</b> digit (6,500 → 650, not 65!). Walk the steps, don't divide: <b>down from 100%</b> if the part is over half, <b>up from 0%</b> if not. Stop at the step <b>closest</b> to your number, even if it's just above it.<br>② <b>The gap in 1%s</b>: 1% = whole without its last <b>two</b> digits (6,500 → 65). How many 65s in the gap? Always 0–5.<br>③ <b>Add or subtract</b> the gap, then check against half. Example: 2,540 of 6,500 → 650, 1,300, 1,950, <b>2,600 (40%)</b> is 60 too much → 60 ≈ 1 × 65 → 40% − 1% = <b>39%</b>.</p>` +
       `<p><b>For "How much is X%?":</b> build it from 10% (÷10), 5% (half of 10%), 1% (÷100), half and quarter. 35% = 30% + 5%. 45% = 50% − 5%.</p>` +
       `<p><b>Fractions ↔ %</b> (learn these by heart: they turn divisions into recognition)</p>` +
       `<div class="sheetgrid">${rows.map(([f, v]) => `<div>${f} = <b>${F(v)}%</b></div>`).join("")}</div>` +
-      `<p class="how">Example from Wadi Airways: 2,170 of 5,000 → 10% = 500 → walk up: 500, 1,000, 1,500, 2,000 → <b>40%</b>. Then 170 left; 1% of 5,000 = 50 → how many 50s in 170? 50 × 3 = 150 → <b>3%</b> → <b>~43%</b> (less than half ✓)</p>`;
+      `<p class="how">Example from Wadi Airways: 2,170 of 5,000 → 10% = 500 → walk up: 500, 1,000, 1,500, <b>2,000 (40%)</b> is nearest. Then 170 left; 1% of 5,000 = 50 → how many 50s in 170? 50 × 3 = 150 → <b>3%</b> → <b>~43%</b> (less than half ✓)</p>`;
   }
 
   // ---------- round flow ----------
