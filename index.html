@@ -1599,8 +1599,9 @@ window.onload = function () {
     }
     const nO = Number.isInteger(O) ? O : Math.max(1, Math.round(O));
     const r = Math.round(L / O);
-    const left = L < O / 2 ? `${F(L)} · 1% = ${F(O, 2)} → less than half of 1% → <b>0%</b>`
-      : `${F(L)} · 1% = ${F(O, 2)}${nO !== O ? ` ≈ ${F(nO)}` : ""} → ${F(nO)} × ${r} = ${F(nO * r)} ≈ ${F(L)} → <b>${r}%</b>`;
+    const oneTxt = `1% of ${F(W)} = ${F(O, 2)}${nO !== O ? ` ≈ ${F(nO)}` : ""}`;
+    const left = L < O / 2 ? `${F(L)} left. ${oneTxt} → ${F(L)} is less than half of that → <b>0%</b>`
+      : `${F(L)} left. ${oneTxt} → how many ${F(nO)}s in ${F(L)}? ${F(nO)} × ${r} = ${F(nO * r)} ≈ ${F(L)} → <b>${r}%</b>`;
     const tot = k * 10 + r, half = W / 2;
     const cmp = P > half * 1.05 ? "more than half" : P < half * 0.95 ? "less than half" : "about half";
     let s = `<b>① Count the 10%s:</b> 10% of ${F(W)} = ${F(T)} → ${walk}<br>` +
@@ -1635,7 +1636,7 @@ window.onload = function () {
       `<p><b>For "How much is X%?":</b> build it from 10% (÷10), 5% (half of 10%), 1% (÷100), half and quarter. 35% = 30% + 5%. 45% = 50% − 5%.</p>` +
       `<p><b>Fractions ↔ %</b> (learn these by heart: they turn divisions into recognition)</p>` +
       `<div class="sheetgrid">${rows.map(([f, v]) => `<div>${f} = <b>${F(v)}%</b></div>`).join("")}</div>` +
-      `<p class="how">Example from Wadi Airways: 2,170 of 5,000 → 10% = 500, four fit = 2,000 → <b>40%</b> · leftover 170, 1% = 50 → 170 ÷ 50 ≈ 3.5 → <b>~43%</b> (a bit less than half ✓)</p>`;
+      `<p class="how">Example from Wadi Airways: 2,170 of 5,000 → 10% = 500 → walk up: 500, 1,000, 1,500, 2,000 → <b>40%</b>. Then 170 left; 1% of 5,000 = 50 → how many 50s in 170? 50 × 3 = 150 → <b>3%</b> → <b>~43%</b> (less than half ✓)</p>`;
   }
 
   // ---------- round flow ----------
