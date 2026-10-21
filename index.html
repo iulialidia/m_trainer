@@ -663,11 +663,11 @@ function buildPlan() {
     else if (doneStep2)
       t = { done: true, title: `Learn ×${f}: Step 2 done`, sub: "One shuffled round a day is enough. It locks in tomorrow." };
     else if (step1Passed(f))
-      t = { done: false, title: `Learn ×${f}: Step 2 (shuffled)`, sub: `~3 min · table progress ${Math.round(100 * tableProgress(f))}%`, run: { mode: "learn", f, stage: "shuffle" }, btn: `Learn ×${f}, Step 2` };
+      t = { done: false, title: `Learn ×${f}: Step 2 (shuffled)`, sub: `~3 min · table progress ${Math.round(100 * tableProgress(f))}%`, left: LEARN_MAX, run: { mode: "learn", f, stage: "shuffle" }, btn: `Learn ×${f}, Step 2` };
     else if (doneStep1)
       t = { done: true, title: `Learn ×${f}: Step 1 done`, sub: "Not 18/20 on the first try yet, so repeat Step 1 tomorrow. Read the cheat sheet once tonight." };
     else
-      t = { done: false, title: `Learn ×${f}: ${sug.busy ? "" : "new table! "}Step 1 (in order)`, sub: `~3 min · read the 📄 cheat sheet first, hints allowed`, run: { mode: "learn", f, stage: "order" }, btn: `Learn ×${f}, Step 1` };
+      t = { done: false, title: `Learn ×${f}: ${sug.busy ? "" : "new table! "}Step 1 (in order)`, sub: `~3 min · read the 📄 cheat sheet first, hints allowed`, left: LEARN_MAX + 2, run: { mode: "learn", f, stage: "order" }, btn: `Learn ×${f}, Step 1` };
     tasks.push(t);
   }
 
@@ -676,7 +676,7 @@ function buildPlan() {
   const reviewDone = todays.some(s => s.mode === "review");
   const weakTask = reviewDone ? { done: true, title: "Weak spots: cleaned up", sub: `${weakN} left in your notebook` }
     : weakN === 0 ? { done: true, title: "Weak spots: notebook empty 🎉", sub: "Nothing to fix today" }
-    : { done: false, title: `Weak spots: 1 round`, sub: `~2 min · ${weakN} in your notebook`, run: { mode: "review" }, btn: "Weak spots round" };
+    : { done: false, title: `Weak spots: 1 round`, sub: `~2 min · ${weakN} in your notebook`, left: 20, run: { mode: "review" }, btn: "Weak spots round" };
 
   // 2) DRILL
   const reserved = (sug && !tasks[0].done ? LEARN_MAX : qBy("learn")) + (weakTask.done ? qBy("review") : 20)
@@ -686,25 +686,25 @@ function buildPlan() {
   const known = knownFactors().map(f => "×" + f).join(", ");
   tasks.push(qN >= target
     ? { done: true, title: `Normal rounds: ${qN}/${target} questions`, sub: `Tables: ${known}` }
-    : { done: false, title: `Normal rounds: ${qN}/${target} questions`, sub: `~${Math.ceil((target - qN) / 20) * 3} min · rounds of 20 · tables: ${known}`, pct: qN / target, run: { mode: "normal" }, btn: `Normal round (${Math.ceil((target - qN) / 20)} left)` });
+    : { done: false, title: `Normal rounds: ${qN}/${target} questions`, sub: `~${Math.ceil((target - qN) / 20) * 3} min · rounds of 20 · tables: ${known}`, pct: qN / target, left: target - qN, run: { mode: "normal" }, btn: `Normal round (${Math.ceil((target - qN) / 20)} left)` });
 
   // 3) PERCENTAGES — 10 questions ("What % is it?" + "How much is X%?")
   const pctToday = pctQsToday();
   tasks.push(pctToday >= PCT_DAILY
     ? { done: true, title: `Percentages: ${pctToday}/${PCT_DAILY} questions`, sub: "Done for today" }
-    : { done: false, title: `Percentages: ${pctToday}/${PCT_DAILY} questions`, sub: "~3 min · \"what % is it?\" and \"how much is X%?\" · goal: 8/10 right", pct: pctToday / PCT_DAILY, run: { mode: "pct" }, btn: "Percentages (10 questions)" });
+    : { done: false, title: `Percentages: ${pctToday}/${PCT_DAILY} questions`, sub: "~3 min · \"what % is it?\" and \"how much is X%?\" · goal: 8/10 right", pct: pctToday / PCT_DAILY, left: PCT_DAILY - pctToday, run: { mode: "pct" }, btn: "Percentages (10 questions)" });
 
   // 4) ONLINE TEST — 10 numerical questions in BCG's Assessio style
   const testToday = testQsToday();
   tasks.push(testToday >= TEST_DAILY
     ? { done: true, title: `Online test: ${testToday}/${TEST_DAILY} questions`, sub: "Done for today" }
-    : { done: false, title: `Online test: ${testToday}/${TEST_DAILY} questions`, sub: "~4 min · numerical questions like your BCG test · ~20s each, 5 options", pct: testToday / TEST_DAILY, run: { mode: "test" }, btn: "Online test (10 questions)" });
+    : { done: false, title: `Online test: ${testToday}/${TEST_DAILY} questions`, sub: "~4 min · numerical questions like your BCG test · ~20s each, 5 options", pct: testToday / TEST_DAILY, left: TEST_DAILY - testToday, run: { mode: "test" }, btn: "Online test (10 questions)" });
 
   // 5) EXHIBIT SUMS — one round of 10 exhibit rows (rough totals)
   const rowsToday = sumsRowsToday();
   tasks.push(rowsToday >= SUMS_DAILY
     ? { done: true, title: `Exhibit sums: ${rowsToday}/${SUMS_DAILY} rows`, sub: "Rough totals of exhibit rows, done for today" }
-    : { done: false, title: `Exhibit sums: ${rowsToday}/${SUMS_DAILY} rows`, sub: "~2 min · rough total of each exhibit row · goal: 8/10 right, under 10s each", pct: rowsToday / SUMS_DAILY, run: { mode: "sums" }, btn: "Exhibit sums (10 rows)" });
+    : { done: false, title: `Exhibit sums: ${rowsToday}/${SUMS_DAILY} rows`, sub: "~2 min · rough total of each exhibit row · goal: 8/10 right, under 10s each", pct: rowsToday / SUMS_DAILY, left: SUMS_DAILY - rowsToday, run: { mode: "sums" }, btn: "Exhibit sums (10 rows)" });
 
   // 6) WEAK SPOTS last: clean up today's slips
   tasks.push(weakTask);
@@ -726,16 +726,50 @@ function sumsRowsToday() {
 function practisedToday() {
   return store.sessions.some(s => dayKey(new Date(s.date)) === dayKey(new Date())) || sumsRowsToday() > 0 || pctQsToday() > 0 || testQsToday() > 0;
 }
+// =====================================================================
+// TIME ESTIMATE — seconds per question, learned from YOUR recent rounds
+//   1st choice: real round durations (start → end, incl. reading the feedback)
+//   2nd choice: your answer time + typical feedback time
+//   3rd choice: a starting default until you have rounds
+// =====================================================================
+const SPQ_DEFAULT = { learn: 9, normal: 6, review: 7, pct: 20, test: 28, sums: 13 };
+const SPQ_OVERHEAD = { learn: 3, normal: 2, review: 3, pct: 8, test: 10, sums: 5 };
+function zoneRecords(mode) {
+  if (mode === "pct") return (store.pct && store.pct.rounds) || [];
+  if (mode === "test") return (store.test && store.test.rounds) || [];
+  if (mode === "sums") return (store.sums && store.sums.rounds) || [];
+  return store.sessions.filter(r => r.mode === mode);
+}
+function secPerQ(mode) {
+  const recs = zoneRecords(mode).slice(0, 30);
+  const timed = recs.filter(r => r.dur && r.n).slice(0, PACE_WINDOW);
+  if (timed.length) return timed.reduce((a, r) => a + r.dur, 0) / timed.reduce((a, r) => a + r.n, 0);
+  const withAvg = recs.filter(r => r.avg != null && r.n).slice(0, PACE_WINDOW);
+  if (withAvg.length) return withAvg.reduce((a, r) => a + r.avg * r.n, 0) / withAvg.reduce((a, r) => a + r.n, 0) + SPQ_OVERHEAD[mode];
+  if (mode === "review") return secPerQ("normal") + 1;
+  return SPQ_DEFAULT[mode];
+}
+function minutesTxt(sec) { const m = Math.max(1, Math.round(sec / 60)); return `~${m} min`; }
+function doneTodaySec() {
+  const today = dayKey(new Date()), isToday = r => dayKey(new Date(r.date)) === today;
+  return ["learn", "normal", "review", "pct", "test", "sums"].reduce((a, m) => a + zoneRecords(m).filter(isToday).reduce((b, r) => b + (r.dur || 0), 0), 0);
+}
 function renderPlan() {
   const tasks = buildPlan();
   const next = tasks.find(t => !t.done);
   const isRest = new Date().getDay() === +store.settings.restDay;
   const anyToday = practisedToday();
   let head = isRest && !anyToday ? `<p class="hint">😴 Rest day: the plan is optional today and your streak is safe.</p>` : "";
-  $("plan").innerHTML = head + tasks.map((t, i) => `
+  let leftSec = 0;
+  tasks.forEach(t => { if (!t.done && t.left > 0) { t.sec = t.left * secPerQ(t.run.mode); leftSec += t.sec; } });
+  const doneSec = doneTodaySec();
+  const total = leftSec > 0
+    ? `<div class="barlbl" style="margin-top:8px"><span>⏱ <b>${minutesTxt(leftSec)} left today</b></span><span>${doneSec >= 60 ? `${minutesTxt(doneSec)} done so far` : `whole workout ${minutesTxt(leftSec + doneSec)}`}</span></div>`
+    : (doneSec >= 60 ? `<div class="barlbl" style="margin-top:8px"><span>⏱ Today's workout took <b>${minutesTxt(doneSec)}</b></span></div>` : "");
+  $("plan").innerHTML = head + total + tasks.map((t, i) => `
     <div class="task ${t.done ? "done" : ""} ${t === next ? "next" : ""}">
       <div class="ck">${t.done ? "✅" : t === next ? "▶️" : "⬜"}</div>
-      <div><div class="t"><b>${i + 1}.</b> ${t.title}</div><div class="sub">${t.sub || ""}</div>
+      <div><div class="t"><b>${i + 1}.</b> ${t.title}</div><div class="sub">${t.sec ? `⏱ ${minutesTxt(t.sec)} · ` : ""}${(t.sub || "").replace(/^~\d+ min · /, "")}</div>
       ${t.pct != null ? `<div class="mini"><div style="width:${Math.round(100 * t.pct)}%"></div></div>` : ""}</div>
     </div>`).join("");
   const btn = $("nextBtn");
@@ -1011,7 +1045,7 @@ function startGame() {
   if (isNaN(s.total) || s.total < 1) s.total = 20;
   if (isNaN(s.target) || s.target <= 0) s.target = 5;
 
-  game = { s, results: [], graduated: [], celebrations: [], xpGained: 0, current: null, locked: false, waitingForNext: false, startTime: 0,
+  game = { startedAt: Date.now(), s, results: [], graduated: [], celebrations: [], xpGained: 0, current: null, locked: false, waitingForNext: false, startTime: 0,
            queue: s.mode === "learn" ? buildLearnQueue(s.learnFactor, s.stage) : null, masteryBefore: s.mode === "learn" ? tableProgress(s.learnFactor) : 0 };
   $("timer").style.visibility = s.mode === "learn" && s.stage === "order" ? "hidden" : "";
   $("setup").style.display = "none";
@@ -1192,7 +1226,7 @@ function finishRound() {
   const zeroSlips = r.filter(x => x.zeroSlip).length;
   const slowest = [...r].sort((a, b) => b.secs - a.secs).slice(0, 3);
 
-  store.sessions.unshift({ date: new Date().toISOString(), n: r.length, acc, avg, fastPct, mode: game.s.mode, zeros: game.s.zeros,
+  store.sessions.unshift({ date: new Date().toISOString(), n: r.length, acc, avg, fastPct, mode: game.s.mode, zeros: game.s.zeros, dur: Math.round((Date.now() - game.startedAt) / 1000),
                            learnFactor: game.s.mode === "learn" ? game.s.learnFactor : undefined, stage: game.s.mode === "learn" ? game.s.stage : undefined });
   store.sessions = store.sessions.slice(0, 50);
 
@@ -1480,7 +1514,7 @@ window.onload = function () {
       "<tr>" + q.nums.map(n => `<td style="text-align:center;padding:6px 5px;font-size:18px">${n.toLocaleString("en-US")}</td>`).join("") + "</tr>";
   }
   function start() {
-    sg = { i: 0, right: 0, times: [], locked: false, q: null };
+    sg = { i: 0, right: 0, times: [], locked: false, q: null, startedAt: Date.now() };
     el("sumsIdle").style.display = "none";
     el("sumsSummary").style.display = "none";
     el("sumsPlay").style.display = "block";
@@ -1532,7 +1566,7 @@ window.onload = function () {
     if (n === 0) { sg = null; return; }
     const avg = sg.times.reduce((a, b) => a + b, 0) / n;
     const d = data();
-    d.rounds.unshift({ date: new Date().toISOString(), n, right: sg.right, avg: Math.round(avg * 10) / 10 });
+    d.rounds.unshift({ date: new Date().toISOString(), n, right: sg.right, avg: Math.round(avg * 10) / 10, dur: Math.round((Date.now() - sg.startedAt) / 1000) });
     d.rounds = d.rounds.slice(0, 20);
     // Link to the daily plan: a round of 5+ rows counts for the streak, and earns XP
     let extra = "";
@@ -1707,7 +1741,7 @@ window.onload = function () {
   function start() {
     // 6 "What %" + 4 "How much", shuffled — "What %" is the harder one
     const kinds = ["share", "share", "share", "share", "share", "share", "of", "of", "of", "of"].sort(() => Math.random() - 0.5);
-    pg = { i: 0, right: 0, times: [], locked: false, q: null, kinds };
+    pg = { i: 0, right: 0, times: [], locked: false, q: null, kinds, startedAt: Date.now() };
     el("pctIdle").style.display = "none"; el("pctSummary").style.display = "none"; el("pctPlay").style.display = "block";
     next();
   }
@@ -1767,7 +1801,7 @@ window.onload = function () {
     if (n === 0) { pg = null; return; }
     const avg = pg.times.reduce((a, b) => a + b, 0) / n;
     const d = data();
-    d.rounds.unshift({ date: new Date().toISOString(), n, right: pg.right, avg: Math.round(avg * 10) / 10 });
+    d.rounds.unshift({ date: new Date().toISOString(), n, right: pg.right, avg: Math.round(avg * 10) / 10, dur: Math.round((Date.now() - pg.startedAt) / 1000) });
     d.rounds = d.rounds.slice(0, 30);
     let extra = "";
     if (n >= 5) {
@@ -2026,7 +2060,7 @@ window.onload = function () {
       let r = Math.random() * pool.reduce((a, x) => a + x.w, 0);
       for (const x of pool) { r -= x.w; if (r <= 0) { chosen.push(x.k); break; } }
     }
-    tg = { i: 0, right: 0, times: [], locked: false, q: null, keys: chosen };
+    tg = { i: 0, right: 0, times: [], locked: false, q: null, keys: chosen, startedAt: Date.now() };
     el("testIdle").style.display = "none"; el("testSummary").style.display = "none"; el("testPlay").style.display = "block";
     next();
   }
@@ -2070,7 +2104,7 @@ window.onload = function () {
     el("testPlay").style.display = "none"; el("testIdle").style.display = "block";
     if (n === 0) { tg = null; return; }
     const avg = tg.times.reduce((a, b) => a + b, 0) / n, d = data();
-    d.rounds.unshift({ date: new Date().toISOString(), n, right: tg.right, avg: Math.round(avg * 10) / 10 });
+    d.rounds.unshift({ date: new Date().toISOString(), n, right: tg.right, avg: Math.round(avg * 10) / 10, dur: Math.round((Date.now() - tg.startedAt) / 1000) });
     d.rounds = d.rounds.slice(0, 30);
     let extra = "";
     if (n >= 5) {
