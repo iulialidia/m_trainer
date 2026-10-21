@@ -65,6 +65,7 @@
   .opt .k { display: inline-block; width: 22px; color: var(--muted); font-weight: bold; }
   .opt.correct { background: #e3f4ea; border-color: var(--green); }
   .opt.wrong { background: #fdecea; border-color: var(--red); }
+  .pz { margin: 10px 0 12px; }
   details summary { cursor: pointer; font-weight: bold; }
   #plan { margin-top: 10px; }
   .task { display: grid; grid-template-columns: 26px 1fr; gap: 6px; align-items: start; padding: 7px 8px; border-radius: 8px; margin: 4px 0; font-size: 14px; background: #fff; border: 1px solid var(--line); }
@@ -111,6 +112,13 @@
 
     <div id="quote"></div>
     <div id="phase"></div>
+  </div>
+
+  <!-- ============ MY PACE ============ -->
+  <div class="card" id="paceCard">
+    <h2>📈 My pace</h2>
+    <p class="hint">Your average over the <b>last 7 rounds</b> of each zone. The bar fills up as you get faster: <b>full bar = target time reached</b>.</p>
+    <div id="pace"></div>
   </div>
 
   <!-- ============ SETUP ============ -->
@@ -621,6 +629,7 @@ function renderMotivation() {
   $("quote").textContent = "“" + quoteOfDay() + "”";
   $("phase").textContent = phaseText(a, iv);
   renderBadges();
+  renderPace();
   if ($("learnFactor").options.length) renderPlan();   // needs the tables list, built on load
 }
 
@@ -760,6 +769,49 @@ function runTask(run) {
   }
   syncModeUI();
   startGame();
+}
+
+// =====================================================================
+// MY PACE — one bar per zone: average time of the last 7 rounds vs the target
+// =====================================================================
+const PACE_WINDOW = 7;
+function paceZones() {
+  const sx = store.sessions.filter(s => (s.mode === "normal" || s.mode === "review") && s.avg != null);
+  const fromMods = r => ({ n: r.n, avg: r.avg, acc: r.n ? 100 * r.right / r.n : 0 });
+  const tgt = parseFloat(($("target") && $("target").value) || 5) || 5;
+  return [
+    { icon: "🏃", name: "Multiplication", target: tgt, accGoal: 90, rounds: sx.map(s => ({ n: s.n, avg: s.avg, acc: s.acc })) },
+    { icon: "📐", name: "Percentages", target: 12, accGoal: 80, rounds: ((store.pct && store.pct.rounds) || []).map(fromMods) },
+    { icon: "🧪", name: "Online test", target: 20, accGoal: 80, rounds: ((store.test && store.test.rounds) || []).map(fromMods) },
+    { icon: "📊", name: "Exhibit sums", target: 10, accGoal: 80, rounds: ((store.sums && store.sums.rounds) || []).map(fromMods) }
+  ];
+}
+function weightedAvg(rounds, key) {
+  const w = rounds.reduce((a, r) => a + r.n, 0);
+  return w ? rounds.reduce((a, r) => a + r[key] * r.n, 0) / w : null;
+}
+function renderPace() {
+  const el = $("pace");
+  if (!el) return;
+  el.innerHTML = paceZones().map(z => {
+    const last = z.rounds.slice(0, PACE_WINDOW);           // rounds are stored newest first
+    if (!last.length) return `<div class="pz"><div class="barlbl"><span><b>${z.icon} ${z.name}</b></span><span>no rounds yet · target ${z.target}s</span></div><div class="bar"><div style="width:0"></div></div></div>`;
+    const t = weightedAvg(last, "avg"), acc = weightedAvg(last, "acc");
+    const fill = Math.min(1, z.target / t), reached = t <= z.target;
+    const color = reached ? "var(--green)" : fill >= 0.75 ? "#8fc5a8" : fill >= 0.5 ? "#e0b44c" : "#e08a6c";
+    const prev = z.rounds.slice(PACE_WINDOW, PACE_WINDOW * 2);
+    let trend = "";
+    if (prev.length >= 3) {
+      const d = weightedAvg(prev, "avg") - t;
+      if (Math.abs(d) >= 0.2) trend = d > 0 ? ` · <span class="ok">▼ ${d.toFixed(1)}s faster than before</span>` : ` · <span class="slow">▲ ${(-d).toFixed(1)}s slower than before</span>`;
+    }
+    const accTxt = `${Math.round(acc)}% right` + (acc >= z.accGoal ? " ✓" : ` (goal ${z.accGoal}%)`);
+    return `<div class="pz">
+      <div class="barlbl"><span><b>${z.icon} ${z.name}</b></span><span>now <b>${t.toFixed(1)}s</b> → target ${z.target}s ${reached ? "✅" : ""}</span></div>
+      <div class="bar"><div style="width:${Math.round(fill * 100)}%;background:${color}"></div></div>
+      <div class="hint">${Math.round(fill * 100)}% of target speed · ${accTxt}${trend} <span class="how">(last ${last.length} round${last.length > 1 ? "s" : ""})</span></div>
+    </div>`;
+  }).join("");
 }
 
 function renderBadges() {
