@@ -112,6 +112,9 @@
 
     <div id="quote"></div>
     <div id="phase"></div>
+    <button class="secondary" id="reportBtn" style="width:100%;margin-top:10px">🔄 Send report to Claude now</button>
+    <textarea id="reportBox" readonly style="display:none;width:100%;height:160px;margin-top:8px;font-size:12px"></textarea>
+    <div class="hint" id="reportHint">Your results are sent to your Notion tracker automatically after every round, so Claude can read them.</div>
   </div>
 
   <!-- ============ MY PACE ============ -->
@@ -2151,6 +2154,72 @@ window.onload = function () {
     el("testClear").addEventListener("click", () => { if (confirm("Clear online-test mistakes?")) { data().byType = {}; saveStore(); renderMistakes(); } });
   });
 })();
+
+// =====================================================================
+// REPORT FOR CLAUDE: plain-text summary to paste into the prep chat
+// =====================================================================
+function buildReport() {
+  const now = new Date(), today = dayKey(now), st = streakInfo();
+  const L = [];
+  L.push(`MATH APP REPORT ${today} ${now.toTimeString().slice(0, 5)}`);
+  L.push(`Streak: ${st.cur} days (best ${st.best}) | Days to application: ${daysUntil(store.settings.applyDate) ?? "-"} | Days to interview: ${daysUntil(store.settings.interviewDate) ?? "-"}`);
+  const rec = store.days[today] || { q: 0, rounds: 0 };
+  L.push(`Today: ${rec.q} questions, ${rec.rounds} rounds (daily goal ${store.settings.dailyGoal || 100})`);
+  const isToday = r => dayKey(new Date(r.date)) === today;
+  const zoneRows = [
+    ["Multiplication", store.sessions.filter(x => x.mode === "normal" || x.mode === "review").map(x => ({ date: x.date, n: x.n, right: Math.round(x.n * x.acc / 100), avg: x.avg }))],
+    ["Learn tables", store.sessions.filter(x => x.mode === "learn").map(x => ({ date: x.date, n: x.n, right: Math.round(x.n * (x.acc || 0) / 100), avg: x.avg }))],
+    ["Percentages", (store.pct && store.pct.rounds) || []],
+    ["Online test", (store.test && store.test.rounds) || []],
+    ["Exhibit sums", (store.sums && store.sums.rounds) || []]
+  ];
+  L.push("Today by zone:");
+  zoneRows.forEach(([name, rounds]) => {
+    const t = rounds.filter(isToday);
+    if (!t.length) { L.push(`  ${name}: not done`); return; }
+    const n = t.reduce((a, r) => a + r.n, 0), right = t.reduce((a, r) => a + (r.right || 0), 0);
+    const avg = weightedAvg(t.filter(r => r.avg != null), "avg");
+    L.push(`  ${name}: ${right}/${n} right (${Math.round(100 * right / n)}%), avg ${avg == null ? "-" : avg.toFixed(1) + "s"}`);
+  });
+  L.push("Pace, last 7 rounds vs target:");
+  paceZones().forEach(z => {
+    const last = z.rounds.slice(0, PACE_WINDOW);
+    if (!last.length) { L.push(`  ${z.name}: no rounds yet (target ${z.target}s)`); return; }
+    const t = weightedAvg(last, "avg"), acc = weightedAvg(last, "acc");
+    L.push(`  ${z.name}: ${t.toFixed(1)}s (target ${z.target}s), ${Math.round(acc)}% right (goal ${z.accGoal}%)`);
+  });
+  L.push("Tables: " + allFactorValues().map(f => `x${f} ${tableStatus(f) === "known" ? "known" : Math.round(100 * tableProgress(f)) + "%"}`).join(", "));
+  const weak = Object.values(store.weak).sort((a, b) => weakWeight(b) - weakWeight(a));
+  L.push(`Weak spots notebook: ${weak.length}` + (weak.length ? " (top: " + weak.slice(0, 5).map(w => `${w.f}x${w.n}`).join(", ") + ")" : ""));
+  const days = [];
+  for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); const r = store.days[dayKey(d)]; days.push(`${dayKey(d).slice(5)} ${r && r.rounds ? r.q + "q" : "-"}`); }
+  L.push("Last 7 days: " + days.join(", "));
+  return L.join("\n");
+}
+// Send the report to Notion (through the Netlify function). Runs automatically after every save.
+let syncTimer = null, lastSent = "";
+async function syncReport(manual) {
+  const txt = buildReport(), today = dayKey(new Date());
+  const rec = store.days[today] || { rounds: 0 };
+  if (!manual && (txt.split("\n").slice(2).join("\n") === lastSent || !rec.rounds)) return;
+  try {
+    const r = await fetch("/.netlify/functions/report", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "m-trainer-iulia", date: today, report: txt, practiced: rec.rounds > 0 }) });
+    if (!r.ok) throw new Error(await r.text());
+    lastSent = txt.split("\n").slice(2).join("\n");
+    $("reportHint").textContent = "✅ Sent to Claude at " + new Date().toTimeString().slice(0, 5);
+    $("reportBox").style.display = "none";
+  } catch (e) {
+    if (manual) {
+      const box = $("reportBox"); box.value = txt; box.style.display = "block";
+      try { await navigator.clipboard.writeText(txt); } catch (_) { box.select(); }
+      $("reportHint").textContent = "⚠️ Couldn't send (" + String(e.message).slice(0, 60) + "). The report is copied: paste it in your BCG chat.";
+    }
+  }
+}
+const _saveStoreOrig = saveStore;
+saveStore = function () { _saveStoreOrig.apply(this, arguments); clearTimeout(syncTimer); syncTimer = setTimeout(() => syncReport(false), 4000); };
+document.getElementById("reportBtn").onclick = () => syncReport(true);
 </script>
 </body>
 </html>
