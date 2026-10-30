@@ -23,11 +23,12 @@ export default async (req) => {
   if (req.method !== "POST") return new Response("POST only", { status: 405, headers: cors });
   if (!process.env.NOTION_TOKEN) return new Response("NOTION_TOKEN not set", { status: 500, headers: cors });
   try {
-    const { key, date, report, practiced } = await req.json();
+    const { key, date, report, practiced, workoutDone } = await req.json();
     if (key !== APP_KEY || !/^\d{4}-\d{2}-\d{2}$/.test(date || "") || typeof report !== "string")
       return new Response("bad request", { status: 400, headers: cors });
     const props = { "Math report": { rich_text: [{ text: { content: report.slice(0, 1990) } }] } };
     if (practiced) props["Math app"] = { checkbox: true };
+    if (workoutDone) props["Workout"] = { checkbox: true };
     const q = await notion(`databases/${DB_ID}/query`, "POST", { filter: { property: "Date", date: { equals: date } }, page_size: 1 });
     if (q.results.length) {
       await notion(`pages/${q.results[0].id}`, "PATCH", { properties: props });

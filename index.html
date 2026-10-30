@@ -2164,7 +2164,7 @@ function buildReport() {
   L.push(`MATH APP REPORT ${today} ${now.toTimeString().slice(0, 5)}`);
   L.push(`Streak: ${st.cur} days (best ${st.best}) | Days to application: ${daysUntil(store.settings.applyDate) ?? "-"} | Days to interview: ${daysUntil(store.settings.interviewDate) ?? "-"}`);
   const rec = store.days[today] || { q: 0, rounds: 0 };
-  L.push(`Today: ${rec.q} questions, ${rec.rounds} rounds (daily goal ${store.settings.dailyGoal || 100})`);
+  L.push(`Today: ${rec.q} questions, ${rec.rounds} rounds (daily goal ${store.settings.dailyGoal || 100}) | Full workout: ${workoutComplete() ? "done" : "not finished"}`);
   const isToday = r => dayKey(new Date(r.date)) === today;
   const zoneRows = [
     ["Multiplication", store.sessions.filter(x => x.mode === "normal" || x.mode === "review").map(x => ({ date: x.date, n: x.n, right: Math.round(x.n * x.acc / 100), avg: x.avg }))],
@@ -2196,6 +2196,7 @@ function buildReport() {
   L.push("Last 7 days: " + days.join(", "));
   return L.join("\n");
 }
+function workoutComplete() { try { return buildPlan().every(t => t.done); } catch (e) { return false; } }
 // Send the report to Notion (through the Netlify function). Runs automatically after every save.
 let syncTimer = null, lastSent = "";
 async function syncReport(manual) {
@@ -2204,7 +2205,7 @@ async function syncReport(manual) {
   if (!manual && (txt.split("\n").slice(2).join("\n") === lastSent || !rec.rounds)) return;
   try {
     const r = await fetch("/.netlify/functions/report", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "m-trainer-iulia", date: today, report: txt, practiced: rec.rounds > 0 }) });
+      body: JSON.stringify({ key: "m-trainer-iulia", date: today, report: txt, practiced: rec.rounds > 0, workoutDone: workoutComplete() }) });
     if (!r.ok) throw new Error(await r.text());
     lastSent = txt.split("\n").slice(2).join("\n");
     $("reportHint").textContent = "✅ Sent to Claude at " + new Date().toTimeString().slice(0, 5);
