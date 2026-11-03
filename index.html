@@ -124,6 +124,23 @@
     <div id="pace"></div>
   </div>
 
+  <!-- ============ CLOUD SYNC ============ -->
+  <div class="card" id="syncCard">
+    <h2>☁️ Same progress on all devices</h2>
+    <div id="syncStatus" class="hint"></div>
+    <div id="syncSetup">
+      <p class="hint">Pick a private sync code (at least 6 characters, e.g. a phrase only you know) and type the <b>same code</b> on your laptop and your iPhone. Your progress from both devices is merged, nothing is lost.</p>
+      <div class="row">
+        <input type="text" id="syncCode" autocomplete="off" autocapitalize="off" placeholder="your sync code" style="font-size:16px;padding:6px;flex:1;min-width:160px">
+        <button id="syncConnect">Connect</button>
+      </div>
+    </div>
+    <div id="syncOn" class="row" style="display:none">
+      <button class="secondary" id="syncNow">Sync now</button>
+      <button class="secondary" id="syncOff">Disconnect this device</button>
+    </div>
+  </div>
+
   <!-- ============ SETUP ============ -->
   <div class="card" id="setup">
     <h2>1. Type of round</h2>
@@ -2221,6 +2238,190 @@ async function syncReport(manual) {
 const _saveStoreOrig = saveStore;
 saveStore = function () { _saveStoreOrig.apply(this, arguments); clearTimeout(syncTimer); syncTimer = setTimeout(() => syncReport(false), 4000); };
 document.getElementById("reportBtn").onclick = () => syncReport(true);
+</script>
+<script>
+// =====================================================================
+// CLOUD SYNC — one shared notebook for the laptop and the iPhone
+//   • open the app / come back to it  → fetch the cloud copy and MERGE it in
+//   • after every save (debounced)    → send this device's copy to the cloud
+//   • two devices saved offline       → the cloud says "conflict" (409) → merge both, send again
+// Merging never throws progress away: rounds are combined, counters take the higher value.
+// =====================================================================
+(function () {
+  const CODE_KEY = "m-trainer.syncCode", VER_KEY = "m-trainer.syncVer";
+  const API = "/.netlify/functions/sync";
+  let pushTimer = null, busy = false, lastStatus = "";
+  const ls = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+               set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} },
+               del: k => { try { localStorage.removeItem(k); } catch (e) {} } };
+  const code = () => ls.get(CODE_KEY);
+  const ver = () => +(ls.get(VER_KEY) || 0);
+
+  // ---------- merge two notebooks ----------
+  const keyOf = r => [r.date, r.mode || "", r.n || "", r.q || "", r.stage || "", r.learnFactor || ""].join("|");
+  function unionList(a, b, cap) {
+    const m = new Map();
+    [...(a || []), ...(b || [])].forEach(r => { if (r && r.date) m.set(keyOf(r), Object.assign({}, m.get(keyOf(r)) || {}, r)); });
+    return [...m.values()].sort((x, y) => (x.date !== y.date ? (x.date < y.date ? 1 : -1) : (keyOf(x) < keyOf(y) ? 1 : keyOf(x) > keyOf(y) ? -1 : 0))).slice(0, cap);
+  }
+  const truthyUnion = (a, b) => { const o = Object.assign({}, a || {}); for (const k in (b || {})) if (b[k]) o[k] = b[k]; return o; };
+  function mergeStores(a, b) {
+    if (!a) return b; if (!b) return a;
+    const newer = (b.updatedAt || 0) > (a.updatedAt || 0) ? b : a;
+    const m = Object.assign({}, a, b);
+    m.sessions = unionList(a.sessions, b.sessions, 200);
+    m.days = {};
+    for (const k of new Set([...Object.keys(a.days || {}), ...Object.keys(b.days || {})])) {
+      const x = (a.days || {})[k] || {}, y = (b.days || {})[k] || {};
+      m.days[k] = { q: Math.max(x.q || 0, y.q || 0), rounds: Math.max(x.rounds || 0, y.rounds || 0) };
+    }
+    m.xp = Math.max(a.xp || 0, b.xp || 0);
+    m.totalGraduated = Math.max(a.totalGraduated || 0, b.totalGraduated || 0);
+    m.v = Math.max(a.v || 0, b.v || 0);
+    m.badges = {};
+    for (const k of new Set([...Object.keys(a.badges || {}), ...Object.keys(b.badges || {})])) {
+      const x = (a.badges || {})[k], y = (b.badges || {})[k];
+      m.badges[k] = x && y ? (x < y ? x : y) : (x || y);          // keep the first date it was earned
+    }
+    m.facts = {};
+    for (const k of new Set([...Object.keys(a.facts || {}), ...Object.keys(b.facts || {})])) {
+      const x = (a.facts || {})[k], y = (b.facts || {})[k];
+      if (!x || !y) { m.facts[k] = x || y; continue; }
+      const nx = (x.right || 0) + (x.wrong || 0), ny = (y.right || 0) + (y.wrong || 0);
+      m.facts[k] = ny > nx || (ny === nx && (y.streak || 0) > (x.streak || 0)) ? y : x;   // the more-practised history wins
+    }
+    m.weak = Object.assign({}, newer === a ? b.weak : a.weak, newer.weak);   // the newer device's notebook wins per question
+    m.knownTables = truthyUnion(a.knownTables, b.knownTables);
+    m.learning = truthyUnion(a.learning, b.learning);
+    m.step1 = truthyUnion(a.step1, b.step1);
+    m.step1Passed = truthyUnion(a.step1Passed, b.step1Passed);
+    m.customFactors = [...new Set([...(a.customFactors || []), ...(b.customFactors || [])])];
+    m.settings = Object.assign({}, a.settings || {}, b.settings || {}, newer.settings || {});
+    for (const z of ["pct", "sums"]) {
+      const x = a[z] || {}, y = b[z] || {};
+      m[z] = { rounds: unionList(x.rounds, y.rounds, 60), mistakes: unionList(x.mistakes, y.mistakes, 30) };
+    }
+    const ta = a.test || {}, tb = b.test || {};
+    m.test = { rounds: unionList(ta.rounds, tb.rounds, 60), byType: {} };
+    for (const k of new Set([...Object.keys(ta.byType || {}), ...Object.keys(tb.byType || {})])) {
+      const x = (ta.byType || {})[k] || {}, y = (tb.byType || {})[k] || {};
+      m.test.byType[k] = { type: x.type || y.type, right: Math.max(x.right || 0, y.right || 0), wrong: Math.max(x.wrong || 0, y.wrong || 0), slow: Math.max(x.slow || 0, y.slow || 0) };
+    }
+    const dk = iso => dayKey(new Date(iso)), qn = {}, rn = {};
+    const add = (list, counts) => (list || []).forEach(r => { const k = dk(r.date); if (counts) qn[k] = (qn[k] || 0) + (r.n || 0); rn[k] = (rn[k] || 0) + ((r.n || 0) >= 5 ? 1 : 0); });
+    add(m.sessions, true); add(m.pct.rounds, true); add(m.test.rounds, true); add(m.sums.rounds, false);
+    for (const k in qn) { const d = m.days[k] || (m.days[k] = { q: 0, rounds: 0 }); d.q = Math.max(d.q, qn[k]); }
+    for (const k in rn) { const d = m.days[k] || (m.days[k] = { q: 0, rounds: 0 }); d.rounds = Math.max(d.rounds, rn[k]); }
+    m.updatedAt = Math.max(a.updatedAt || 0, b.updatedAt || 0);
+    return m;
+  }
+  window.mergeStores = mergeStores;   // (also used by the tests)
+
+  // canonical text, so "did anything change?" ignores key order
+  const canon = o => JSON.stringify(o, (k, v) => v && typeof v === "object" && !Array.isArray(v) ? Object.keys(v).sort().reduce((r, kk) => (r[kk] = v[kk], r), {}) : v);
+  const roundActive = () => ["play", "sumsPlay", "pctPlay", "testPlay"].some(id => { const e = document.getElementById(id); return e && e.style.display !== "none"; });
+  const writeLocal = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) {} };
+
+  function status(txt) {
+    lastStatus = txt;
+    const el = document.getElementById("syncStatus");
+    if (el) el.innerHTML = txt;
+    const on = !!code();
+    document.getElementById("syncSetup").style.display = on ? "none" : "";
+    document.getElementById("syncOn").style.display = on ? "flex" : "none";
+  }
+  const time = () => new Date().toTimeString().slice(0, 5);
+
+  // bring a cloud copy into this device; reload the screen if the progress changed
+  function absorb(cloudDoc, cloudVer) {
+    ls.set(VER_KEY, String(cloudVer || 0));
+    if (!cloudDoc) return false;
+    const merged = mergeStores(store, cloudDoc);
+    if (canon(merged) === canon(store)) return false;
+    store = merged; writeLocal();
+    redraw();
+    return true;
+  }
+
+  function redraw() {                          // simplest way to redraw every card with the merged progress
+    if (roundActive()) return;
+    let last = 0; try { last = +sessionStorage.getItem("m-trainer.reloadAt") || 0; } catch (e) {}
+    if (Date.now() - last < 20000) return;       // safety: never reload in a loop
+    try { sessionStorage.setItem("m-trainer.reloadAt", String(Date.now())); } catch (e) {}
+    location.reload();
+  }
+  async function pull() {
+    if (!code() || busy || roundActive()) return;
+    busy = true;
+    try {
+      const r = await fetch(`${API}?code=${encodeURIComponent(code())}`, { cache: "no-store" });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.status);
+      const j = await r.json();
+      const changed = absorb(j.doc, j.ver);
+      busy = false;
+      if (changed || !j.doc) push();            // send back the merged copy (or the first copy ever)
+      else status(`☁️ Synced at ${time()} · this device is up to date`);
+    } catch (e) {
+      busy = false;
+      status(`⚠️ Offline or sync unavailable (${String(e.message || e).slice(0, 50)}). Your progress is safe on this device and will sync later.`);
+    }
+  }
+
+  async function push(attempt = 0) {
+    if (!code() || busy) return;
+    busy = true;
+    try {
+      const r = await fetch(API, { method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code(), doc: store, baseVer: ver() }) });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 409 && attempt < 3) {       // the other device saved in between → merge, then try again
+        busy = false;
+        const merged = mergeStores(store, j.doc);
+        ls.set(VER_KEY, String(j.ver || 0));
+        const changed = canon(merged) !== canon(store);
+        if (changed) { store = merged; writeLocal(); }
+        await push(attempt + 1);
+        if (changed) redraw();
+        return;
+      }
+      if (!r.ok) throw new Error(j.error || r.status);
+      ls.set(VER_KEY, String(j.ver));
+      busy = false;
+      status(`☁️ Synced at ${time()} · your laptop and iPhone share the same progress`);
+    } catch (e) {
+      busy = false;
+      status(`⚠️ Not synced yet (${String(e.message || e).slice(0, 50)}). Your progress is safe on this device and will sync when you're online.`);
+    }
+  }
+
+  // every save → stamp the time and send to the cloud a few seconds later
+  const _save = saveStore;
+  saveStore = function () {
+    store.updatedAt = Date.now();
+    _save.apply(this, arguments);
+    if (code()) { clearTimeout(pushTimer); pushTimer = setTimeout(() => push(), 2500); }
+  };
+
+  window.addEventListener("load", () => {
+    document.getElementById("syncConnect").onclick = () => {
+      const c = document.getElementById("syncCode").value.trim();
+      if (c.length < 6) { status("Please use at least 6 characters."); return; }
+      ls.set(CODE_KEY, c); ls.set(VER_KEY, "0");
+      status("☁️ Connecting…");
+      pull();
+    };
+    document.getElementById("syncNow").onclick = () => { status("☁️ Syncing…"); pull(); };
+    document.getElementById("syncOff").onclick = () => {
+      if (!confirm("Stop syncing on this device? Your progress stays here, and in the cloud.")) return;
+      ls.del(CODE_KEY); ls.del(VER_KEY); status("This device is not syncing. Type your code to connect again.");
+    };
+    status(code() ? "☁️ Checking for progress from your other device…" : "This device is not syncing yet.");
+    pull();
+  });
+  // coming back to the app (switching tabs, unlocking the phone) → fetch the latest
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") pull(); });
+  window.addEventListener("online", () => pull());
+})();
 </script>
 </body>
 </html>
