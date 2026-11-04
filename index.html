@@ -137,6 +137,7 @@
     </div>
     <div id="syncOn" class="row" style="display:none">
       <button class="secondary" id="syncNow">Sync now</button>
+      <button class="secondary" id="syncShow">👁 Show my code</button>
       <button class="secondary" id="syncOff">Disconnect this device</button>
     </div>
   </div>
@@ -2411,6 +2412,10 @@ document.getElementById("reportBtn").onclick = () => syncReport(true);
       pull();
     };
     document.getElementById("syncNow").onclick = () => { status("☁️ Syncing…"); pull(); };
+    document.getElementById("syncShow").onclick = () => {
+      const el = document.getElementById("syncStatus");
+      el.innerHTML = `🔑 Your sync code on this device: <b style="font-size:18px;user-select:all">${(code() || "").replace(/[<>&]/g, "")}</b><br>Type exactly this code on your other device.`;
+    };
     document.getElementById("syncOff").onclick = () => {
       if (!confirm("Stop syncing on this device? Your progress stays here, and in the cloud.")) return;
       ls.del(CODE_KEY); ls.del(VER_KEY); status("This device is not syncing. Type your code to connect again.");
