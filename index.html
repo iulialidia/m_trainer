@@ -66,6 +66,17 @@
   .opt.correct { background: #e3f4ea; border-color: var(--green); }
   .opt.wrong { background: #fdecea; border-color: var(--red); }
   .pz { margin: 10px 0 12px; }
+  /* ---------- phone number pad ---------- */
+  .keypad { max-width: 360px; margin: 10px auto 0; user-select: none; -webkit-user-select: none; }
+  .keypad button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .kp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .kp-grid button { font-size: 26px; padding: 12px 0; background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 10px; }
+  .kp-grid button:active, .kp-units button:active { background: #e6ece9; }
+  .kp-units { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px; }
+  .kp-units button { font-size: 18px; padding: 10px 0; background: #f3f7f5; color: var(--accent); border: 1px solid var(--accent); border-radius: 10px; }
+  .kp-enter { width: 100%; margin-top: 8px; font-size: 22px; padding: 14px 0; border-radius: 10px; }
+  html.touch #unitBtns, html.touch #checkBtn, html.touch #sumsCheckBtn, html.touch #pctCheckBtn { display: none !important; }
+  html.touch #answer, html.touch #sumsAnswer, html.touch #pctAnswer { caret-color: transparent; }
   details summary { cursor: pointer; font-weight: bold; }
   #plan { margin-top: 10px; }
   .task { display: grid; grid-template-columns: 26px 1fr; gap: 6px; align-items: start; padding: 7px 8px; border-radius: 8px; margin: 4px 0; font-size: 14px; background: #fff; border: 1px solid var(--line); }
@@ -2237,8 +2248,75 @@ async function syncReport(manual) {
   }
 }
 const _saveStoreOrig = saveStore;
-saveStore = function () { _saveStoreOrig.apply(this, arguments); clearTimeout(syncTimer); syncTimer = setTimeout(() => syncReport(false), 4000); };
+saveStore = function () { _saveStoreOrig.apply(this, arguments); clearTimeout(syncTimer); syncTimer = setTimeout(reportWhenIdle, 4000); };
+// only between rounds and when online (fewer calls to Netlify on the free plan)
+function reportWhenIdle() {
+  if (typeof anyRoundActive === "function" && anyRoundActive()) { clearTimeout(syncTimer); syncTimer = setTimeout(reportWhenIdle, 8000); return; }
+  if (!navigator.onLine) return;
+  syncReport(false);
+}
+window.addEventListener("online", () => { clearTimeout(syncTimer); syncTimer = setTimeout(reportWhenIdle, 3000); });
 document.getElementById("reportBtn").onclick = () => syncReport(true);
+</script>
+<script>
+// =====================================================================
+// PHONE NUMBER PAD — on touch screens the app shows its own keypad with a big ✓ Enter key.
+// Why: the iPhone number keyboard has no Enter key, and iOS won't reopen the keyboard
+// when the app moves to the next question by itself. Our keypad is always on screen.
+// On a laptop nothing changes: type and press Enter as usual.
+// =====================================================================
+const IS_TOUCH = (() => { try { return matchMedia("(pointer: coarse)").matches || "ontouchstart" in window; } catch (e) { return false; } })();
+function anyRoundActive() {
+  return ["play", "sumsPlay", "pctPlay", "testPlay"].some(id => { const e = document.getElementById(id); return e && e.style.display !== "none" && getComputedStyle(e).display !== "none"; });
+}
+(function () {
+  if (!IS_TOUCH) return;
+  document.documentElement.classList.add("touch");
+  const pads = [
+    { input: "answer",     enter: () => submit(),                                        units: "unitBtns" },
+    { input: "sumsAnswer", enter: () => document.getElementById("sumsCheckBtn").click(), units: ["k"] },
+    { input: "pctAnswer",  enter: () => document.getElementById("pctCheckBtn").click(),  units: null }
+  ];
+  function build(cfg) {
+    const input = document.getElementById(cfg.input);
+    if (!input) return;
+    input.setAttribute("inputmode", "none");          // no system keyboard
+    input.setAttribute("readonly", "readonly");       // (belt and braces for older iOS)
+    input.focus = () => {};                           // the app's own .focus() calls would scroll/zoom; not needed
+    const locked = () => input.disabled || input.dataset.lock === "1";
+    // the multiplication round toggles readOnly itself → mirror it into data-lock and keep readonly on
+    const ro = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "readOnly");
+    Object.defineProperty(input, "readOnly", { configurable: true, get() { return input.dataset.lock === "1"; },
+      set(v) { input.dataset.lock = v ? "1" : "0"; ro.set.call(input, true); } });
+    const pad = document.createElement("div");
+    pad.className = "keypad";
+    const unitKeys = Array.isArray(cfg.units) ? cfg.units : ["k", "m", "bn", "000"];
+    pad.innerHTML =
+      (cfg.units ? `<div class="kp-units" ${cfg.units === "unitBtns" ? 'style="display:none"' : ""}>` +
+        unitKeys.map(u => `<button type="button" data-k="${u}">${u === "000" ? ",000" : u}</button>`).join("") + `</div>` : "") +
+      `<div class="kp-grid">` + ["1","2","3","4","5","6","7","8","9",".","0","⌫"].map(k => `<button type="button" data-k="${k}">${k}</button>`).join("") + `</div>` +
+      `<button type="button" class="kp-enter" data-k="enter">✓ Enter</button>`;
+    // place it right under the Check button (or under the unit buttons for multiplication)
+    const anchor = cfg.units === "unitBtns" ? document.getElementById("unitBtns") : input.nextElementSibling;
+    anchor.parentNode.insertBefore(pad, anchor.nextSibling);
+    pad.addEventListener("click", e => {
+      const b = e.target.closest("button"); if (!b) return;
+      const k = b.dataset.k;
+      if (k === "enter") { cfg.enter(); return; }
+      if (locked()) return;                              // feedback is showing: only ✓ (= next) works
+      if (k === "⌫") input.value = input.value.slice(0, -1);
+      else if (input.value.length < 14) input.value += k;
+    });
+    // multiplication: show the k / m / bn row only in "consulting zeros" rounds (same rule as the old unit buttons)
+    if (cfg.units === "unitBtns") {
+      const ub = document.getElementById("unitBtns"), row = pad.querySelector(".kp-units");
+      const sync = () => { row.style.display = ub.style.display === "none" ? "none" : "grid"; };
+      new MutationObserver(sync).observe(ub, { attributes: true, attributeFilter: ["style"] });
+      sync();
+    }
+  }
+  window.addEventListener("load", () => pads.forEach(build));
+})();
 </script>
 <script>
 // =====================================================================
@@ -2249,7 +2327,7 @@ document.getElementById("reportBtn").onclick = () => syncReport(true);
 // Merging never throws progress away: rounds are combined, counters take the higher value.
 // =====================================================================
 (function () {
-  const CODE_KEY = "m-trainer.syncCode", VER_KEY = "m-trainer.syncVer";
+  const CODE_KEY = "m-trainer.syncCode", VER_KEY = "m-trainer.syncVer", DIRTY_KEY = "m-trainer.unsent";
   const API = "/.netlify/functions/sync";
   let pushTimer = null, busy = false, lastStatus = "";
   const ls = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -2257,6 +2335,8 @@ document.getElementById("reportBtn").onclick = () => syncReport(true);
                del: k => { try { localStorage.removeItem(k); } catch (e) {} } };
   const code = () => ls.get(CODE_KEY);
   const ver = () => +(ls.get(VER_KEY) || 0);
+  const dirty = () => ls.get(DIRTY_KEY) === "1";      // progress made on this device that the cloud hasn't seen yet
+  let lastPull = 0;
 
   // ---------- merge two notebooks ----------
   const keyOf = r => [r.date, r.mode || "", r.n || "", r.q || "", r.stage || "", r.learnFactor || ""].join("|");
@@ -2351,8 +2431,11 @@ document.getElementById("reportBtn").onclick = () => syncReport(true);
     try { sessionStorage.setItem("m-trainer.reloadAt", String(Date.now())); } catch (e) {}
     location.reload();
   }
-  async function pull() {
+  async function pull(force) {
     if (!code() || busy || roundActive()) return;
+    if (!force && Date.now() - lastPull < 30000) return;   // at most every 30 s (saves Netlify usage)
+    if (!navigator.onLine) { status(dirty() ? "✈️ Offline. Your new progress is saved on this device and will sync when you're back online." : "✈️ Offline. Practise as usual; it syncs when you're back online."); return; }
+    lastPull = Date.now();
     busy = true;
     try {
       const r = await fetch(`${API}?code=${encodeURIComponent(code())}`, { cache: "no-store" });
@@ -2360,7 +2443,7 @@ document.getElementById("reportBtn").onclick = () => syncReport(true);
       const j = await r.json();
       const changed = absorb(j.doc, j.ver);
       busy = false;
-      if (changed || !j.doc) push();            // send back the merged copy (or the first copy ever)
+      if (changed || !j.doc || dirty()) push();  // send back the merged copy, the first copy, or progress made offline
       else status(`☁️ Synced at ${time()} · this device is up to date`);
     } catch (e) {
       busy = false;
@@ -2370,6 +2453,8 @@ document.getElementById("reportBtn").onclick = () => syncReport(true);
 
   async function push(attempt = 0) {
     if (!code() || busy) return;
+    if (roundActive()) { clearTimeout(pushTimer); pushTimer = setTimeout(() => push(), 5000); return; }   // wait for the round to end
+    if (!navigator.onLine) { status("✈️ Offline. Your new progress is saved on this device and will sync when you're back online."); return; }
     busy = true;
     try {
       const r = await fetch(API, { method: "PUT", headers: { "Content-Type": "application/json" },
@@ -2387,6 +2472,7 @@ document.getElementById("reportBtn").onclick = () => syncReport(true);
       }
       if (!r.ok) throw new Error(j.error || r.status);
       ls.set(VER_KEY, String(j.ver));
+      ls.del(DIRTY_KEY);
       busy = false;
       status(`☁️ Synced at ${time()} · your laptop and iPhone share the same progress`);
     } catch (e) {
@@ -2400,7 +2486,7 @@ document.getElementById("reportBtn").onclick = () => syncReport(true);
   saveStore = function () {
     store.updatedAt = Date.now();
     _save.apply(this, arguments);
-    if (code()) { clearTimeout(pushTimer); pushTimer = setTimeout(() => push(), 2500); }
+    if (code()) { ls.set(DIRTY_KEY, "1"); clearTimeout(pushTimer); pushTimer = setTimeout(() => push(), 3000); }
   };
 
   window.addEventListener("load", () => {
@@ -2409,9 +2495,9 @@ document.getElementById("reportBtn").onclick = () => syncReport(true);
       if (c.length < 6) { status("Please use at least 6 characters."); return; }
       ls.set(CODE_KEY, c); ls.set(VER_KEY, "0");
       status("☁️ Connecting…");
-      pull();
+      pull(true);
     };
-    document.getElementById("syncNow").onclick = () => { status("☁️ Syncing…"); pull(); };
+    document.getElementById("syncNow").onclick = () => { status("☁️ Syncing…"); pull(true); };
     document.getElementById("syncShow").onclick = () => {
       const el = document.getElementById("syncStatus");
       el.innerHTML = `🔑 Your sync code on this device: <b style="font-size:18px;user-select:all">${(code() || "").replace(/[<>&]/g, "")}</b><br>Type exactly this code on your other device.`;
@@ -2421,11 +2507,14 @@ document.getElementById("reportBtn").onclick = () => syncReport(true);
       ls.del(CODE_KEY); ls.del(VER_KEY); status("This device is not syncing. Type your code to connect again.");
     };
     status(code() ? "☁️ Checking for progress from your other device…" : "This device is not syncing yet.");
-    pull();
+    pull(true);
+    // offline support: keep a copy of the app on this device (works on the iPhone home-screen app too)
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("/sw.js").catch(() => {});
   });
   // coming back to the app (switching tabs, unlocking the phone) → fetch the latest
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") pull(); });
-  window.addEventListener("online", () => pull());
+  window.addEventListener("online", () => pull(true));
+  window.addEventListener("offline", () => status("✈️ Offline. Practise as usual; your progress is saved here and syncs when you're back online."));
 })();
 </script>
 </body>
