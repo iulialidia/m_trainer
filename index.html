@@ -128,29 +128,101 @@
     <div class="hint" id="reportHint">Your results are sent to your Notion tracker automatically after every round, so Claude can read them.</div>
   </div>
 
-  <!-- ============ MY PACE ============ -->
-  <div class="card" id="paceCard">
-    <h2>📈 My pace</h2>
-    <p class="hint">Your average over the <b>last 7 rounds</b> of each zone. The bar fills up as you get faster: <b>full bar = target time reached</b>.</p>
-    <div id="pace"></div>
+  <!-- ============ PLAY ============ -->
+  <div class="card" id="play" style="display:none">
+    <div id="status"><span id="progress"></span><span id="timer">0.0s</span></div>
+    <div id="question"></div>
+    <div id="coach"></div>
+    <input type="text" id="answer" autocomplete="off" inputmode="decimal" enterkeyhint="go">
+    <button id="checkBtn">Check</button>
+    <div class="row" id="unitBtns" style="justify-content:center;display:none">
+      <button class="secondary unit" data-unit="k">k</button>
+      <button class="secondary unit" data-unit="m">m</button>
+      <button class="secondary unit" data-unit="bn">bn</button>
+      <button class="secondary unit" data-unit="000">,000</button>
+      <button class="secondary unit" data-unit="⌫">⌫</button>
+    </div>
+    <div id="result"></div>
+    <div id="shortcut"></div>
+    <div id="nextHint">Say the shortcut out loud, then press <b>Enter</b> for the next question</div>
+    <div class="row" style="justify-content:center"><button class="secondary" id="hintBtn" style="display:none">💡 Hint</button></div>
+    <div class="row" style="justify-content:center;margin-top:14px">
+      <button class="secondary" id="stopBtn">End round</button>
+    </div>
   </div>
 
-  <!-- ============ CLOUD SYNC ============ -->
-  <div class="card" id="syncCard">
-    <h2>☁️ Same progress on all devices</h2>
-    <div id="syncStatus" class="hint"></div>
-    <div id="syncSetup">
-      <p class="hint">Pick a private sync code (at least 6 characters, e.g. a phrase only you know) and type the <b>same code</b> on your laptop and your iPhone. Your progress from both devices is merged, nothing is lost.</p>
-      <div class="row">
-        <input type="text" id="syncCode" autocomplete="off" autocapitalize="off" placeholder="your sync code" style="font-size:16px;padding:6px;flex:1;min-width:160px">
-        <button id="syncConnect">Connect</button>
-      </div>
+  <!-- ============ SUMMARY ============ -->
+  <div class="card" id="summary"></div>
+
+  <!-- ============ PERCENTAGES ============ -->
+  <div class="card" id="pctCard">
+    <h2>📐 Percentages</h2>
+    <p class="hint">The two percentage moves every case needs: <b>"What % is it?"</b> (2,170 out of 5,000 → 43%) and <b>"How much is X%?"</b> (55% of 480 → 264). Close is good enough: within ±2 points or ±3% counts as right. Type <b>43</b> or <b>43%</b>.</p>
+    <details id="pctSheetBox">
+      <summary>📄 Percent cheat sheet</summary>
+      <div id="pctSheet"></div>
+    </details>
+    <div id="pctIdle"><div class="row"><button id="pctStartBtn">Start 10 questions</button></div></div>
+    <div id="pctPlay" style="display:none;text-align:center">
+      <div class="barlbl"><span id="pctProgress"></span><span id="pctTimer">0.0s</span></div>
+      <div id="pctKind" class="hint" style="margin-top:10px"></div>
+      <div id="pctQ" style="font-size:22px;font-weight:bold;margin:10px 0 12px;line-height:1.4"></div>
+      <input type="text" id="pctAnswer" autocomplete="off" inputmode="decimal" enterkeyhint="go" style="width:200px;font-size:22px;text-align:center;padding:6px">
+      <button id="pctCheckBtn">Check</button>
+      <div id="pctResult" style="min-height:26px;font-size:18px;font-weight:bold;margin-top:10px"></div>
+      <div id="pctExplain" style="display:none;text-align:left;background:#f3f7f5;border-left:4px solid var(--accent);padding:10px 12px;margin-top:10px;border-radius:4px;line-height:1.7"></div>
+      <div id="pctNextHint" class="hint" style="display:none;margin-top:8px">Say the method out loud, then press <b>Enter</b> for the next one</div>
+      <div class="row" style="justify-content:center;margin-top:12px"><button class="secondary" id="pctStopBtn">End round</button></div>
     </div>
-    <div id="syncOn" class="row" style="display:none">
-      <button class="secondary" id="syncNow">Sync now</button>
-      <button class="secondary" id="syncShow">👁 Show my code</button>
-      <button class="secondary" id="syncOff">Disconnect this device</button>
+    <div id="pctSummary" style="display:none"></div>
+    <h2>Percentage mistakes (saved)</h2>
+    <div id="pctMistakes" class="empty">No mistakes yet 🎉</div>
+    <button class="secondary" id="pctClear">Clear</button>
+  </div>
+
+  <!-- ============ ONLINE TEST (Assessio-style numerical) ============ -->
+  <div class="card" id="testCard">
+    <h2>🧪 Online test practice (numerical)</h2>
+    <p class="hint">The numerical questions from BCG's online test (Assessio "People Test Match"): the same templates as your two 80-question simulations, with fresh numbers each time. Real test pace is <b>~20 seconds per question</b>, 5 options, no calculator. After each answer you get <b>the fast way</b>, <b>the trap</b> and <b>a 20-second move</b>.</p>
+    <div id="testIdle"><div class="row"><button id="testStartBtn">Start 10 questions</button></div></div>
+    <div id="testPlay" style="display:none;text-align:center">
+      <div class="barlbl"><span id="testProgress"></span><span id="testTimer">0.0s</span></div>
+      <div id="testType" class="hint" style="margin-top:10px"></div>
+      <div id="testQ" style="font-size:19px;font-weight:bold;margin:10px 0 12px;line-height:1.45;text-align:left"></div>
+      <div id="testOpts" style="display:grid;grid-template-columns:1fr;gap:8px;max-width:420px;margin:0 auto"></div>
+      <div id="testResult" style="min-height:26px;font-size:18px;font-weight:bold;margin-top:10px"></div>
+      <div id="testExplain" style="display:none;text-align:left;background:#f3f7f5;border-left:4px solid var(--accent);padding:10px 12px;margin-top:10px;border-radius:4px;line-height:1.7"></div>
+      <button id="testNextBtn" style="display:none;margin-top:10px;width:100%;max-width:420px">Next question ▶</button>
+      <div class="row" style="justify-content:center;margin-top:12px"><button class="secondary" id="testStopBtn">End round</button></div>
     </div>
+    <div id="testSummary" style="display:none"></div>
+    <h2>Online-test mistakes by type (saved)</h2>
+    <div id="testMistakes" class="empty">No mistakes yet 🎉</div>
+    <button class="secondary" id="testClear">Clear</button>
+  </div>
+
+  <!-- ============ EXHIBIT SUMS ============ -->
+  <div class="card" id="sumsCard">
+    <h2>📊 Exhibit sums (rough totals)</h2>
+    <p class="hint">Like reading a row of a case exhibit. Three tricks: <b>① start with the biggest cell</b>, <b>② pair up the small cells</b>, <b>③ keep one running total in hundreds</b> (11.5 → 16 → 20…), then type your <b>rough total</b>. Within ±10% counts as right — speed matters more than precision. Answer in the same unit as the numbers (e.g. <b>2200</b> or <b>2.2k</b>).</p>
+    <div id="sumsIdle">
+      <div class="row"><button id="sumsStartBtn">Start 10 rows</button></div>
+    </div>
+    <div id="sumsPlay" style="display:none;text-align:center">
+      <div class="barlbl"><span id="sumsProgress"></span><span id="sumsTimer">0.0s</span></div>
+      <div id="sumsTitle" class="hint" style="margin-top:10px"></div>
+      <div style="overflow-x:auto"><table id="sumsTable" style="margin:8px auto;width:auto;font-variant-numeric:tabular-nums"></table></div>
+      <input type="text" id="sumsAnswer" autocomplete="off" inputmode="decimal" enterkeyhint="go" placeholder="rough total" style="width:200px;font-size:22px;text-align:center;padding:6px">
+      <button id="sumsCheckBtn">Check</button>
+      <div id="sumsResult" style="min-height:26px;font-size:18px;font-weight:bold;margin-top:10px"></div>
+      <div id="sumsExplain" style="display:none;text-align:left;background:#f3f7f5;border-left:4px solid var(--accent);padding:10px 12px;margin-top:10px;border-radius:4px;line-height:1.7"></div>
+      <div id="sumsNextHint" class="hint" style="display:none;margin-top:8px">Press <b>Enter</b> for the next row</div>
+      <div class="row" style="justify-content:center;margin-top:12px"><button class="secondary" id="sumsStopBtn">End round</button></div>
+    </div>
+    <div id="sumsSummary" style="display:none"></div>
+    <h2>Exhibit-sums mistakes (saved)</h2>
+    <div id="sumsMistakes" class="empty">No mistakes yet 🎉</div>
+    <button class="secondary" id="sumsClear">Clear</button>
   </div>
 
   <!-- ============ SETUP ============ -->
@@ -207,77 +279,6 @@
     <div class="row"><button id="startBtn">Start round</button></div>
   </div>
 
-  <!-- ============ EXHIBIT SUMS ============ -->
-  <div class="card" id="sumsCard">
-    <h2>📊 Exhibit sums (rough totals)</h2>
-    <p class="hint">Like reading a row of a case exhibit. Three tricks: <b>① start with the biggest cell</b>, <b>② pair up the small cells</b>, <b>③ keep one running total in hundreds</b> (11.5 → 16 → 20…), then type your <b>rough total</b>. Within ±10% counts as right — speed matters more than precision. Answer in the same unit as the numbers (e.g. <b>2200</b> or <b>2.2k</b>).</p>
-    <div id="sumsIdle">
-      <div class="row"><button id="sumsStartBtn">Start 10 rows</button></div>
-    </div>
-    <div id="sumsPlay" style="display:none;text-align:center">
-      <div class="barlbl"><span id="sumsProgress"></span><span id="sumsTimer">0.0s</span></div>
-      <div id="sumsTitle" class="hint" style="margin-top:10px"></div>
-      <div style="overflow-x:auto"><table id="sumsTable" style="margin:8px auto;width:auto;font-variant-numeric:tabular-nums"></table></div>
-      <input type="text" id="sumsAnswer" autocomplete="off" inputmode="decimal" enterkeyhint="go" placeholder="rough total" style="width:200px;font-size:22px;text-align:center;padding:6px">
-      <button id="sumsCheckBtn">Check</button>
-      <div id="sumsResult" style="min-height:26px;font-size:18px;font-weight:bold;margin-top:10px"></div>
-      <div id="sumsExplain" style="display:none;text-align:left;background:#f3f7f5;border-left:4px solid var(--accent);padding:10px 12px;margin-top:10px;border-radius:4px;line-height:1.7"></div>
-      <div id="sumsNextHint" class="hint" style="display:none;margin-top:8px">Press <b>Enter</b> for the next row</div>
-      <div class="row" style="justify-content:center;margin-top:12px"><button class="secondary" id="sumsStopBtn">End round</button></div>
-    </div>
-    <div id="sumsSummary" style="display:none"></div>
-    <h2>Exhibit-sums mistakes (saved)</h2>
-    <div id="sumsMistakes" class="empty">No mistakes yet 🎉</div>
-    <button class="secondary" id="sumsClear">Clear</button>
-  </div>
-
-  <!-- ============ PERCENTAGES ============ -->
-  <div class="card" id="pctCard">
-    <h2>📐 Percentages</h2>
-    <p class="hint">The two percentage moves every case needs: <b>"What % is it?"</b> (2,170 out of 5,000 → 43%) and <b>"How much is X%?"</b> (55% of 480 → 264). Close is good enough: within ±2 points or ±3% counts as right. Type <b>43</b> or <b>43%</b>.</p>
-    <details id="pctSheetBox">
-      <summary>📄 Percent cheat sheet</summary>
-      <div id="pctSheet"></div>
-    </details>
-    <div id="pctIdle"><div class="row"><button id="pctStartBtn">Start 10 questions</button></div></div>
-    <div id="pctPlay" style="display:none;text-align:center">
-      <div class="barlbl"><span id="pctProgress"></span><span id="pctTimer">0.0s</span></div>
-      <div id="pctKind" class="hint" style="margin-top:10px"></div>
-      <div id="pctQ" style="font-size:22px;font-weight:bold;margin:10px 0 12px;line-height:1.4"></div>
-      <input type="text" id="pctAnswer" autocomplete="off" inputmode="decimal" enterkeyhint="go" style="width:200px;font-size:22px;text-align:center;padding:6px">
-      <button id="pctCheckBtn">Check</button>
-      <div id="pctResult" style="min-height:26px;font-size:18px;font-weight:bold;margin-top:10px"></div>
-      <div id="pctExplain" style="display:none;text-align:left;background:#f3f7f5;border-left:4px solid var(--accent);padding:10px 12px;margin-top:10px;border-radius:4px;line-height:1.7"></div>
-      <div id="pctNextHint" class="hint" style="display:none;margin-top:8px">Say the method out loud, then press <b>Enter</b> for the next one</div>
-      <div class="row" style="justify-content:center;margin-top:12px"><button class="secondary" id="pctStopBtn">End round</button></div>
-    </div>
-    <div id="pctSummary" style="display:none"></div>
-    <h2>Percentage mistakes (saved)</h2>
-    <div id="pctMistakes" class="empty">No mistakes yet 🎉</div>
-    <button class="secondary" id="pctClear">Clear</button>
-  </div>
-
-  <!-- ============ ONLINE TEST (Assessio-style numerical) ============ -->
-  <div class="card" id="testCard">
-    <h2>🧪 Online test practice (numerical)</h2>
-    <p class="hint">The numerical questions from BCG's online test (Assessio "People Test Match"): the same templates as your two 80-question simulations, with fresh numbers each time. Real test pace is <b>~20 seconds per question</b>, 5 options, no calculator. After each answer you get <b>the fast way</b>, <b>the trap</b> and <b>a 20-second move</b>.</p>
-    <div id="testIdle"><div class="row"><button id="testStartBtn">Start 10 questions</button></div></div>
-    <div id="testPlay" style="display:none;text-align:center">
-      <div class="barlbl"><span id="testProgress"></span><span id="testTimer">0.0s</span></div>
-      <div id="testType" class="hint" style="margin-top:10px"></div>
-      <div id="testQ" style="font-size:19px;font-weight:bold;margin:10px 0 12px;line-height:1.45;text-align:left"></div>
-      <div id="testOpts" style="display:grid;grid-template-columns:1fr;gap:8px;max-width:420px;margin:0 auto"></div>
-      <div id="testResult" style="min-height:26px;font-size:18px;font-weight:bold;margin-top:10px"></div>
-      <div id="testExplain" style="display:none;text-align:left;background:#f3f7f5;border-left:4px solid var(--accent);padding:10px 12px;margin-top:10px;border-radius:4px;line-height:1.7"></div>
-      <button id="testNextBtn" style="display:none;margin-top:10px;width:100%;max-width:420px">Next question ▶</button>
-      <div class="row" style="justify-content:center;margin-top:12px"><button class="secondary" id="testStopBtn">End round</button></div>
-    </div>
-    <div id="testSummary" style="display:none"></div>
-    <h2>Online-test mistakes by type (saved)</h2>
-    <div id="testMistakes" class="empty">No mistakes yet 🎉</div>
-    <button class="secondary" id="testClear">Clear</button>
-  </div>
-
   <!-- ============ MASTERY ============ -->
   <div class="card" id="masteryCard">
     <h2>My tables</h2>
@@ -286,31 +287,30 @@
     <div id="nextSuggest" class="celebrate" style="display:none"></div>
   </div>
 
-  <!-- ============ PLAY ============ -->
-  <div class="card" id="play" style="display:none">
-    <div id="status"><span id="progress"></span><span id="timer">0.0s</span></div>
-    <div id="question"></div>
-    <div id="coach"></div>
-    <input type="text" id="answer" autocomplete="off" inputmode="decimal" enterkeyhint="go">
-    <button id="checkBtn">Check</button>
-    <div class="row" id="unitBtns" style="justify-content:center;display:none">
-      <button class="secondary unit" data-unit="k">k</button>
-      <button class="secondary unit" data-unit="m">m</button>
-      <button class="secondary unit" data-unit="bn">bn</button>
-      <button class="secondary unit" data-unit="000">,000</button>
-      <button class="secondary unit" data-unit="⌫">⌫</button>
-    </div>
-    <div id="result"></div>
-    <div id="shortcut"></div>
-    <div id="nextHint">Say the shortcut out loud, then press <b>Enter</b> for the next question</div>
-    <div class="row" style="justify-content:center"><button class="secondary" id="hintBtn" style="display:none">💡 Hint</button></div>
-    <div class="row" style="justify-content:center;margin-top:14px">
-      <button class="secondary" id="stopBtn">End round</button>
-    </div>
+  <!-- ============ MY PACE ============ -->
+  <div class="card" id="paceCard">
+    <h2>📈 My pace</h2>
+    <p class="hint">Your average over the <b>last 7 rounds</b> of each zone. The bar fills up as you get faster: <b>full bar = target time reached</b>.</p>
+    <div id="pace"></div>
   </div>
 
-  <!-- ============ SUMMARY ============ -->
-  <div class="card" id="summary"></div>
+  <!-- ============ CLOUD SYNC ============ -->
+  <div class="card" id="syncCard">
+    <h2>☁️ Same progress on all devices</h2>
+    <div id="syncStatus" class="hint"></div>
+    <div id="syncSetup">
+      <p class="hint">Pick a private sync code (at least 6 characters, e.g. a phrase only you know) and type the <b>same code</b> on your laptop and your iPhone. Your progress from both devices is merged, nothing is lost.</p>
+      <div class="row">
+        <input type="text" id="syncCode" autocomplete="off" autocapitalize="off" placeholder="your sync code" style="font-size:16px;padding:6px;flex:1;min-width:160px">
+        <button id="syncConnect">Connect</button>
+      </div>
+    </div>
+    <div id="syncOn" class="row" style="display:none">
+      <button class="secondary" id="syncNow">Sync now</button>
+      <button class="secondary" id="syncShow">👁 Show my code</button>
+      <button class="secondary" id="syncOff">Disconnect this device</button>
+    </div>
+  </div>
 
   <!-- ============ HISTORY ============ -->
   <div class="card">
@@ -1087,6 +1087,7 @@ function startGame() {
   $("play").style.display = "";
   renderHistory();
   nextQuestion();
+  $("play").scrollIntoView({ behavior: "smooth", block: "start" });   // phones: the round starts on screen, no scrolling
 }
 
 function nextQuestion() {
