@@ -2197,12 +2197,19 @@ function buildReport() {
   L.push(`Today: ${rec.q} questions, ${rec.rounds} rounds (daily goal ${store.settings.dailyGoal || 100}) | Full workout: ${workoutComplete() ? "done" : "not finished"}`);
   const isToday = r => dayKey(new Date(r.date)) === today;
   const zoneRows = [
-    ["Multiplication", store.sessions.filter(x => x.mode === "normal" || x.mode === "review").map(x => ({ date: x.date, n: x.n, right: Math.round(x.n * x.acc / 100), avg: x.avg }))],
-    ["Learn tables", store.sessions.filter(x => x.mode === "learn").map(x => ({ date: x.date, n: x.n, right: Math.round(x.n * (x.acc || 0) / 100), avg: x.avg }))],
+    ["Multiplication", store.sessions.filter(x => x.mode === "normal" || x.mode === "review").map(x => ({ date: x.date, n: x.n, right: Math.round(x.n * x.acc / 100), avg: x.avg, dur: x.dur }))],
+    ["Learn tables", store.sessions.filter(x => x.mode === "learn").map(x => ({ date: x.date, n: x.n, right: Math.round(x.n * (x.acc || 0) / 100), avg: x.avg, dur: x.dur }))],
     ["Percentages", (store.pct && store.pct.rounds) || []],
     ["Online test", (store.test && store.test.rounds) || []],
     ["Exhibit sums", (store.sums && store.sums.rounds) || []]
   ];
+  // Real practice time today: sum of every round's duration, plus the first-to-last window
+  const todayRounds = zoneRows.flatMap(([, rounds]) => rounds.filter(isToday).map(r => ({ end: new Date(r.date).getTime(), dur: r.dur != null ? r.dur : Math.round((r.n || 0) * (r.avg || 0)) })));
+  if (todayRounds.length) {
+    const sec = todayRounds.reduce((a, r) => a + r.dur, 0);
+    const from = new Date(Math.min(...todayRounds.map(r => r.end - r.dur * 1000))), to = new Date(Math.max(...todayRounds.map(r => r.end)));
+    L.push(`Time today: ${Math.max(1, Math.round(sec / 60))} min of rounds (from ${from.toTimeString().slice(0, 5)} to ${to.toTimeString().slice(0, 5)})`);
+  } else L.push("Time today: 0 min");
   L.push("Today by zone:");
   zoneRows.forEach(([name, rounds]) => {
     const t = rounds.filter(isToday);
