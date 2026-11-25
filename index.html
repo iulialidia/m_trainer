@@ -1786,6 +1786,41 @@ window.onload = function () {
     s += `<span class="how">Say it: "${F(P)} out of ${F(W)}: ${over ? `the missing ${F(Q)} is about ${F(ans)} percent, so ` : ""}roughly ${F(tot)} percent."</span><br>`;
     return s;
   }
+  // ---------- the second method, on paper: nearest 10% step, then the gap in 1%s ----------
+  function tenMethod(q) {
+    const { P, W } = q, T = W / 10, O = W / 100;
+    const k = Math.floor(P / T + 1e-9);
+    // stop at the NEAREST 10% step — even if it's just above the number — then fix the small gap
+    const up = (k + 1) * T - P, down = P - k * T;
+    const st = up < down ? k + 1 : k, above = st * T > P;
+    const fmtStep = j => `${F(j * T)} (${j * 10}%)`;
+    let walk;
+    if (P > W / 2) {                         // more than half: walk down from 100%
+      const steps = [`${F(W)}`];
+      for (let j = 9; j >= st; j--) steps.push(fmtStep(j));
+      walk = `walk down: ${steps.join(" → ")}`;
+    } else if (st === 0) walk = `${F(P)} is closer to 0 than to ${F(T)} (10%)`;
+    else {                                    // less than half: walk up from 0%
+      const steps = [];
+      for (let j = 1; j <= st; j++) steps.push(fmtStep(j));
+      walk = `walk up: ${steps.join(" → ")}`;
+    }
+    walk += st === 0 ? ` → start from <b>0%</b>` : above ? ` ← just <b>above</b> ${F(P)}, the nearest step → <b>${st * 10}%</b>` : ` ← just below ${F(P)}, the nearest step → <b>${st * 10}%</b>`;
+    const G = Math.round(Math.abs(P - st * T) * 100) / 100;
+    const nO = Number.isInteger(O) ? O : Math.max(1, Math.round(O));
+    const r = Math.round(G / O);
+    const oneTxt = `1% of ${F(W)} = ${F(O, 2)}${nO !== O ? ` ≈ ${F(nO)}` : ""}`;
+    const gapTxt = above ? `${F(st * T)} − ${F(P)} = ${F(G)} too much` : `${F(P)} − ${F(st * T)} = ${F(G)} left`;
+    const left = G < O / 2 ? `${gapTxt}. ${oneTxt} → less than half of that → <b>0%</b>`
+      : `${gapTxt}. ${oneTxt} → how many ${F(nO)}s in ${F(G)}? ${F(nO)} × ${r} = ${F(nO * r)} ≈ ${F(G)} → <b>${r}%</b>`;
+    const tot = above ? st * 10 - r : st * 10 + r, half = W / 2;
+    const cmp = P > half * 1.05 ? "more than half" : P < half * 0.95 ? "less than half" : "about half";
+    let s = `<b>① Nearest 10% step:</b> 10% of ${F(W)} = ${F(T)} → ${walk}<br>` +
+            `<b>② The gap in 1%s:</b> ${left}<br>` +
+            `<b>③ ${above ? "Subtract" : "Add up"}:</b> ${st * 10}% ${above ? "−" : "+"} ${r}% ≈ <b>${tot}%</b> (check: ${cmp} ✓)<br>`;
+    s += `<span class="how">Say it: "${F(P)} out of ${F(W)} is roughly ${tot} percent, ${cmp}."</span><br>`;
+    return s;
+  }
   function ofMethod(q) {
     const { p, N } = q, t = N / 10, r = q.exact;
     let s;
@@ -1808,7 +1843,8 @@ window.onload = function () {
   function sheetHTML() {
     const rows = [["1/2", 50], ["1/3", 33.3], ["2/3", 66.7], ["1/4", 25], ["3/4", 75], ["1/5", 20], ["1/6", 16.7], ["1/7", 14.3],
                   ["1/8", 12.5], ["3/8", 37.5], ["1/9", 11.1], ["1/10", 10], ["1/12", 8.3], ["1/20", 5], ["1/25", 4], ["1/50", 2]];
-    return `<p><b>"What % is it?" in your head: Shrink, Anchor, Adjust</b><br>` +
+    return `<div style="font-size:1.2em;font-weight:bold;color:var(--accent);margin:6px 0 4px">Method 1 for "What % is it?": the 10% steps</div><p>① <b>Nearest 10% step</b>: 10% = whole without its <b>last</b> digit (6,500 → 650, not 65!). Walk the steps, don't divide: <b>down from 100%</b> if the part is over half, <b>up from 0%</b> if not. Stop at the step <b>closest</b> to your number, even if it's just above it.<br>② <b>The gap in 1%s</b>: 1% = whole without its last <b>two</b> digits (6,500 → 65). How many 65s in the gap? Always 0–5.<br>③ <b>Add or subtract</b> the gap, then check against half. Example: 2,540 of 6,500 → 650, 1,300, 1,950, <b>2,600 (40%)</b> is 60 too much → 60 ≈ 1 × 65 → 40% − 1% = <b>39%</b>.</p>` +
+      `<div style="font-size:1.2em;font-weight:bold;color:var(--accent);margin:6px 0 4px">Method 2 for "What % is it?", in your head: Half check, Shrink, Anchor, Adjust</div><p>` +
       `⓪ <b>Half check:</b> is the part more than half of the whole? If yes, do the 3 steps on the <b>missing piece</b> (whole − part), then 100% minus it.<br>` +
       `① <b>Shrink:</b> cut the same zeros from both numbers (1,250 of 5,600 → 12.5 of 56).<br>` +
       `② <b>Anchor:</b> how many parts fit in the whole? Say <b>both</b> neighbours: 12.5 × 4 = 50 (below 56), 12.5 × 5 = 62.5 (above) → between 1/5 and 1/4, between 20% and 25%.<br>` +
@@ -1871,7 +1907,7 @@ window.onload = function () {
       ? (great ? "✅ Spot on" : "✅ Close enough") + (slow ? ` | but slow (${sec.toFixed(1)}s, aim < ${SLOW_SEC}s)` : ` | ${sec.toFixed(1)}s`)
       : `❌ ${offTxt}`;
     el("pctResult").className = ok ? (slow ? "slow" : "ok") : "bad";
-    el("pctExplain").innerHTML = (q.kind === "share" ? shareMethod(q) : ofMethod(q)) +
+    el("pctExplain").innerHTML = (q.kind === "share" ? `<div style="font-size:1.2em;font-weight:bold;color:var(--accent);margin:6px 0 4px">Method 1: the 10% steps</div>${tenMethod(q)}<hr style="border:0;border-top:1px solid #cfdcd5;margin:8px 0"><div style="font-size:1.2em;font-weight:bold;color:var(--accent);margin:6px 0 4px">Method 2, in your head: Half check, Shrink, Anchor, Adjust</div>${shareMethod(q)}` : ofMethod(q)) +
       `<b>Exact:</b> ${exactTxt} | you said ${F(val)}${q.kind === "share" ? "%" : ""}`;
     el("pctExplain").style.display = "block"; el("pctNextHint").style.display = "block";
     if (!ok || slow) {
@@ -1921,7 +1957,7 @@ window.onload = function () {
   }
 
   window.pctStart = () => { if (!pg) start(); };   // used by Today's plan
-  window.pctTest = { makeShare, makeOf, shareMethod, ofMethod, friendlyDivide };
+  window.pctTest = { makeShare, makeOf, shareMethod, tenMethod, ofMethod, friendlyDivide };
   window.addEventListener("load", () => {
     el("pctSheet").innerHTML = sheetHTML();
     renderMistakes();
