@@ -67,6 +67,9 @@
   .opt.wrong { background: #fdecea; border-color: var(--red); }
   .pz { margin: 10px 0 12px; }
   /* ---------- phone number pad ---------- */
+  .pkfrac { display:inline-flex; flex-direction:column; vertical-align:middle; text-align:center; margin:0 3px; line-height:1.15; font-size:0.85em; }
+  .pkfrac > span:first-child { border-bottom:1.4px solid currentColor; padding:0 4px; }
+  .pkfrac > span:last-child { padding:0 4px; }
   .keypad { max-width: 360px; margin: 10px auto 0; user-select: none; -webkit-user-select: none; }
   .keypad button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   .kp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -119,7 +122,7 @@
     <div class="bar"><div id="xpBar"></div></div>
 
     <div id="days"></div>
-    <div class="hint">Last 14 days · dark = workout done · light = practised a bit · striped = rest day (doesn't break your streak)</div>
+    <div class="hint">Last 14 days | dark = workout done | light = practised a bit | striped = rest day (doesn't break your streak)</div>
 
     <div id="quote"></div>
     <div id="phase"></div>
@@ -153,6 +156,33 @@
 
   <!-- ============ SUMMARY ============ -->
   <div class="card" id="summary"></div>
+
+  <!-- ============ LEARN PACKS ============ -->
+  <div class="card" id="packCard">
+    <h2>📘 Learn packs: anchors, division, cubes</h2>
+    <p class="hint">Learned like a table: read the cheat sheet, Step 1 in order, then one shuffled Step 2 a day until every card is right and on time on two different days. The first pack starts after ×50 is known, then one pack at a time.</p>
+    <div id="packList"></div>
+    <details id="packSheetBox">
+      <summary>📄 Pack cheat sheet</summary>
+      <div id="packSheet"></div>
+    </details>
+    <div id="packIdle">
+      <div class="row"><select id="packSel"></select></div>
+      <div class="row"><label><input type="radio" name="packStage" value="order" checked> Step 1 (in order)</label> <label><input type="radio" name="packStage" value="shuffle"> Step 2 (shuffled, timed)</label></div>
+      <div class="row"><button id="packStartBtn">Start 20 cards</button></div>
+    </div>
+    <div id="packPlay" style="display:none;text-align:center">
+      <div class="barlbl"><span id="packProgress"></span><span id="packTimer">0.0s</span></div>
+      <div id="packQ" style="font-size:22px;font-weight:bold;margin:14px 0 12px;line-height:1.5"></div>
+      <input type="text" id="packAnswer" autocomplete="off" inputmode="decimal" enterkeyhint="go" style="width:200px;font-size:22px;text-align:center;padding:6px">
+      <button id="packCheckBtn">Check</button>
+      <div id="packResult" style="min-height:26px;font-size:18px;font-weight:bold;margin-top:10px"></div>
+      <div id="packExplain" style="display:none;text-align:left;background:#f3f7f5;border-left:4px solid var(--accent);padding:10px 12px;margin-top:10px;border-radius:4px;line-height:1.7"></div>
+      <div id="packNextHint" class="hint" style="display:none;margin-top:8px">Say the method out loud, then press <b>Enter</b> for the next one</div>
+      <div class="row" style="justify-content:center;margin-top:12px"><button class="secondary" id="packStopBtn">End round</button></div>
+    </div>
+    <div id="packSummary" style="display:none"></div>
+  </div>
 
   <!-- ============ PERCENTAGES ============ -->
   <div class="card" id="pctCard">
@@ -241,8 +271,8 @@
         <button class="secondary" id="sheetBtn">📄 Show cheat sheet</button>
       </div>
       <div class="row">
-        <label><input type="radio" name="stage" value="order" checked> Step 1 · In order (×1 → ×20), no timer, hints allowed</label>
-        <label><input type="radio" name="stage" value="shuffle"> Step 2 · Shuffled, timer on</label>
+        <label><input type="radio" name="stage" value="order" checked> Step 1: in order (×1 → ×20), no timer, hints allowed</label>
+        <label><input type="radio" name="stage" value="shuffle"> Step 2: shuffled, timer on</label>
       </div>
       <p class="hint">Every mistake comes back later in the same round, so a round ends only when you've answered all 20 correctly.</p>
       <div id="sheet" style="display:none"></div>
@@ -282,7 +312,7 @@
   <!-- ============ MASTERY ============ -->
   <div class="card" id="masteryCard">
     <h2>My tables</h2>
-    <p class="hint">How the bar fills: finishing Step 1 = 10%. Then each of the 20 facts climbs 3 small steps: <b>·</b> answered right → <b>✓</b> right within your target time → <b>✅</b> on time again on a <b>different day</b> (mastered). A table becomes ✅ known when 18 of its 20 facts are mastered. The two-day rule is on purpose: spacing it out is what makes it stick.</p>
+    <p class="hint">How the bar fills: finishing Step 1 = 10%. Then each of the 20 facts climbs 3 small steps: <b>○</b> answered right → <b>✓</b> right within your target time → <b>✅</b> on time again on a <b>different day</b> (mastered). A table becomes ✅ known when 18 of its 20 facts are mastered. The two-day rule is on purpose: spacing it out is what makes it stick.</p>
     <div id="mastery"></div>
     <div id="nextSuggest" class="celebrate" style="display:none"></div>
   </div>
@@ -383,7 +413,7 @@ function loadStore() {
   if (!s.badges) s.badges = {};
   if (!s.totalGraduated) s.totalGraduated = 0;
   if (!s.settings) s.settings = {};
-  s.settings = Object.assign({ applyDate: "2026-11-30", interviewDate: "2027-01-29", dailyGoal: 100, restDay: 6 }, s.settings);
+  s.settings = Object.assign({ applyDate: "2027-01-30", interviewDate: "2027-03-15", dailyGoal: 100, restDay: 6 }, s.settings);
   // v4: daily goal raised to 100 (~15-20 min), learning mode
   if (!s.v || s.v < 4) {
     if (s.settings.dailyGoal === 40) s.settings.dailyGoal = 100;
@@ -522,11 +552,11 @@ function ruleLine(f) {
 }
 function renderSheet(f) {
   let cells = "";
-  for (let n = 1; n <= LEARN_MAX; n++) cells += `<div>${f} × ${n} = <b>${fmt(f * n)}</b> ${["", "·", "✓", "✅"][factLevel(f, n)]}<br><span class="how">${howShort(f, n)}</span></div>`;
+  for (let n = 1; n <= LEARN_MAX; n++) cells += `<div>${f} × ${n} = <b>${fmt(f * n)}</b> ${["", "○", "✓", "✅"][factLevel(f, n)]}<br><span class="how">${howShort(f, n)}</span></div>`;
   const ex = shortcutSteps(f, 7).join(" → ");
   $("sheet").innerHTML = `<b>How to think about ×${f}:</b> ${ruleLine(f)}<br><span class="hint">Example, out loud: ${ex}</span>` +
     `<div class="sheetgrid">${cells}</div>` +
-    `<p class="hint">· answered right &nbsp; ✓ right and on time &nbsp; ✅ mastered (on time on two different days)</p>` +
+    `<p class="hint">○ answered right &nbsp; ✓ right and on time &nbsp; ✅ mastered (on time on two different days)</p>` +
     `<p class="hint">The grey line under each fact is the quick way to get there. Tip: read the list once out loud, <b>method first, then the answer</b> ("240 minus 12… 228"), then start Step 1. In Step 1 the method appears under every question, so you practise the thinking, not just the result.</p>`;
 }
 function renderMastery() {
@@ -662,6 +692,7 @@ function renderMotivation() {
   $("phase").textContent = phaseText(a, iv);
   renderBadges();
   renderPace();
+  if (window.packsAPI && !window.packsAPI.active()) window.packsAPI.renderPacks();
   if ($("learnFactor").options.length) renderPlan();   // needs the tables list, built on load
 }
 
@@ -695,48 +726,52 @@ function buildPlan() {
     else if (doneStep2)
       t = { done: true, title: `Learn ×${f}: Step 2 done`, sub: "One shuffled round a day is enough. It locks in tomorrow." };
     else if (step1Passed(f))
-      t = { done: false, title: `Learn ×${f}: Step 2 (shuffled)`, sub: `~3 min · table progress ${Math.round(100 * tableProgress(f))}%`, left: LEARN_MAX, run: { mode: "learn", f, stage: "shuffle" }, btn: `Learn ×${f}, Step 2` };
+      t = { done: false, title: `Learn ×${f}: Step 2 (shuffled)`, sub: `~3 min | table progress ${Math.round(100 * tableProgress(f))}%`, left: LEARN_MAX, run: { mode: "learn", f, stage: "shuffle" }, btn: `Learn ×${f}, Step 2` };
     else if (doneStep1)
       t = { done: true, title: `Learn ×${f}: Step 1 done`, sub: "Not 18/20 on the first try yet, so repeat Step 1 tomorrow. Read the cheat sheet once tonight." };
     else
-      t = { done: false, title: `Learn ×${f}: ${sug.busy ? "" : "new table! "}Step 1 (in order)`, sub: `~3 min · read the 📄 cheat sheet first, hints allowed`, left: LEARN_MAX + 2, run: { mode: "learn", f, stage: "order" }, btn: `Learn ×${f}, Step 1` };
+      t = { done: false, title: `Learn ×${f}: ${sug.busy ? "" : "new table! "}Step 1 (in order)`, sub: `~3 min | read the 📄 cheat sheet first, hints allowed`, left: LEARN_MAX + 2, run: { mode: "learn", f, stage: "order" }, btn: `Learn ×${f}, Step 1` };
     tasks.push(t);
   }
+  // 1b) LEARN PACK (anchors, division, cubes): starts after ×50 is known, one pack at a time
+  const packTask = window.packsAPI ? window.packsAPI.planTask() : null;
+  if (packTask) tasks.push(packTask);
 
   // 3) WEAK SPOTS (computed before drill so the drill target leaves room for it)
   const weakN = Object.keys(store.weak).length;
   const reviewDone = todays.some(s => s.mode === "review");
   const weakTask = reviewDone ? { done: true, title: "Weak spots: cleaned up", sub: `${weakN} left in your notebook` }
     : weakN === 0 ? { done: true, title: "Weak spots: notebook empty 🎉", sub: "Nothing to fix today" }
-    : { done: false, title: `Weak spots: 1 round`, sub: `~2 min · ${weakN} in your notebook`, left: 20, run: { mode: "review" }, btn: "Weak spots round" };
+    : { done: false, title: `Weak spots: 1 round`, sub: `~2 min | ${weakN} in your notebook`, left: 20, run: { mode: "review" }, btn: "Weak spots round" };
 
   // 2) DRILL
   const reserved = (sug && !tasks[0].done ? LEARN_MAX : qBy("learn")) + (weakTask.done ? qBy("review") : 20)
-    + Math.max(PCT_DAILY, pctQsToday()) + Math.max(TEST_DAILY, testQsToday());   // percentages + online test count toward the 100 too
+    + Math.max(PCT_DAILY, pctQsToday()) + Math.max(TEST_DAILY, testQsToday())
+    + (packTask ? (packTask.done ? window.packsAPI.packQsToday() : 20) : 0);   // percentages, online test and the learn pack count toward the 100 too
   const target = Math.max(20, Math.ceil((goal - reserved) / 20) * 20);
   const qN = qBy("normal");
   const known = knownFactors().map(f => "×" + f).join(", ");
   tasks.push(qN >= target
     ? { done: true, title: `Normal rounds: ${qN}/${target} questions`, sub: `Tables: ${known}` }
-    : { done: false, title: `Normal rounds: ${qN}/${target} questions`, sub: `~${Math.ceil((target - qN) / 20) * 3} min · rounds of 20 · tables: ${known}`, pct: qN / target, left: target - qN, run: { mode: "normal" }, btn: `Normal round (${Math.ceil((target - qN) / 20)} left)` });
+    : { done: false, title: `Normal rounds: ${qN}/${target} questions`, sub: `~${Math.ceil((target - qN) / 20) * 3} min | rounds of 20 | tables: ${known}`, pct: qN / target, left: target - qN, run: { mode: "normal" }, btn: `Normal round (${Math.ceil((target - qN) / 20)} left)` });
 
   // 3) PERCENTAGES — 10 questions ("What % is it?" + "How much is X%?")
   const pctToday = pctQsToday();
   tasks.push(pctToday >= PCT_DAILY
     ? { done: true, title: `Percentages: ${pctToday}/${PCT_DAILY} questions`, sub: "Done for today" }
-    : { done: false, title: `Percentages: ${pctToday}/${PCT_DAILY} questions`, sub: "~3 min · \"what % is it?\" and \"how much is X%?\" · goal: 8/10 right", pct: pctToday / PCT_DAILY, left: PCT_DAILY - pctToday, run: { mode: "pct" }, btn: "Percentages (10 questions)" });
+    : { done: false, title: `Percentages: ${pctToday}/${PCT_DAILY} questions`, sub: "~3 min | \"what % is it?\" and \"how much is X%?\" | goal: 8/10 right", pct: pctToday / PCT_DAILY, left: PCT_DAILY - pctToday, run: { mode: "pct" }, btn: "Percentages (10 questions)" });
 
   // 4) ONLINE TEST — 10 numerical questions in BCG's Assessio style
   const testToday = testQsToday();
   tasks.push(testToday >= TEST_DAILY
     ? { done: true, title: `Online test: ${testToday}/${TEST_DAILY} questions`, sub: "Done for today" }
-    : { done: false, title: `Online test: ${testToday}/${TEST_DAILY} questions`, sub: "~4 min · numerical questions like your BCG test · ~20s each, 5 options", pct: testToday / TEST_DAILY, left: TEST_DAILY - testToday, run: { mode: "test" }, btn: "Online test (10 questions)" });
+    : { done: false, title: `Online test: ${testToday}/${TEST_DAILY} questions`, sub: "~4 min | numerical questions like your BCG test | ~20s each, 5 options", pct: testToday / TEST_DAILY, left: TEST_DAILY - testToday, run: { mode: "test" }, btn: "Online test (10 questions)" });
 
   // 5) EXHIBIT SUMS — one round of 10 exhibit rows (rough totals)
   const rowsToday = sumsRowsToday();
   tasks.push(rowsToday >= SUMS_DAILY
     ? { done: true, title: `Exhibit sums: ${rowsToday}/${SUMS_DAILY} rows`, sub: "Rough totals of exhibit rows, done for today" }
-    : { done: false, title: `Exhibit sums: ${rowsToday}/${SUMS_DAILY} rows`, sub: "~2 min · rough total of each exhibit row · goal: 8/10 right, under 10s each", pct: rowsToday / SUMS_DAILY, left: SUMS_DAILY - rowsToday, run: { mode: "sums" }, btn: "Exhibit sums (10 rows)" });
+    : { done: false, title: `Exhibit sums: ${rowsToday}/${SUMS_DAILY} rows`, sub: "~2 min | rough total of each exhibit row | goal: 8/10 right, under 10s each", pct: rowsToday / SUMS_DAILY, left: SUMS_DAILY - rowsToday, run: { mode: "sums" }, btn: "Exhibit sums (10 rows)" });
 
   // 6) WEAK SPOTS last: clean up today's slips
   tasks.push(weakTask);
@@ -756,7 +791,7 @@ function sumsRowsToday() {
   return ((store.sums && store.sums.rounds) || []).filter(r => dayKey(new Date(r.date)) === today).reduce((a, r) => a + r.n, 0);
 }
 function practisedToday() {
-  return store.sessions.some(s => dayKey(new Date(s.date)) === dayKey(new Date())) || sumsRowsToday() > 0 || pctQsToday() > 0 || testQsToday() > 0;
+  return store.sessions.some(s => dayKey(new Date(s.date)) === dayKey(new Date())) || sumsRowsToday() > 0 || pctQsToday() > 0 || testQsToday() > 0 || (window.packsAPI && window.packsAPI.packQsToday() > 0);
 }
 // =====================================================================
 // TIME ESTIMATE — seconds per question, learned from YOUR recent rounds
@@ -764,12 +799,13 @@ function practisedToday() {
 //   2nd choice: your answer time + typical feedback time
 //   3rd choice: a starting default until you have rounds
 // =====================================================================
-const SPQ_DEFAULT = { learn: 9, normal: 6, review: 7, pct: 20, test: 28, sums: 13 };
-const SPQ_OVERHEAD = { learn: 3, normal: 2, review: 3, pct: 8, test: 10, sums: 5 };
+const SPQ_DEFAULT = { learn: 9, normal: 6, review: 7, pct: 20, test: 28, sums: 13, pack: 12 };
+const SPQ_OVERHEAD = { learn: 3, normal: 2, review: 3, pct: 8, test: 10, sums: 5, pack: 5 };
 function zoneRecords(mode) {
   if (mode === "pct") return (store.pct && store.pct.rounds) || [];
   if (mode === "test") return (store.test && store.test.rounds) || [];
   if (mode === "sums") return (store.sums && store.sums.rounds) || [];
+  if (mode === "pack") return (store.packs && store.packs.rounds) || [];
   return store.sessions.filter(r => r.mode === mode);
 }
 function secPerQ(mode) {
@@ -784,7 +820,7 @@ function secPerQ(mode) {
 function minutesTxt(sec) { const m = Math.max(1, Math.round(sec / 60)); return `~${m} min`; }
 function doneTodaySec() {
   const today = dayKey(new Date()), isToday = r => dayKey(new Date(r.date)) === today;
-  return ["learn", "normal", "review", "pct", "test", "sums"].reduce((a, m) => a + zoneRecords(m).filter(isToday).reduce((b, r) => b + (r.dur || 0), 0), 0);
+  return ["learn", "normal", "review", "pct", "test", "sums", "pack"].reduce((a, m) => a + zoneRecords(m).filter(isToday).reduce((b, r) => b + (r.dur || 0), 0), 0);
 }
 function renderPlan() {
   const tasks = buildPlan();
@@ -801,7 +837,7 @@ function renderPlan() {
   $("plan").innerHTML = head + total + tasks.map((t, i) => `
     <div class="task ${t.done ? "done" : ""} ${t === next ? "next" : ""}">
       <div class="ck">${t.done ? "✅" : t === next ? "▶️" : "⬜"}</div>
-      <div><div class="t"><b>${i + 1}.</b> ${t.title}</div><div class="sub">${t.sec ? `⏱ ${minutesTxt(t.sec)} · ` : ""}${(t.sub || "").replace(/^~\d+ min · /, "")}</div>
+      <div><div class="t"><b>${i + 1}.</b> ${t.title}</div><div class="sub">${t.sec ? `⏱ ${minutesTxt(t.sec)} | ` : ""}${(t.sub || "").replace(/^~\d+ min \| /, "")}</div>
       ${t.pct != null ? `<div class="mini"><div style="width:${Math.round(100 * t.pct)}%"></div></div>` : ""}</div>
     </div>`).join("");
   const btn = $("nextBtn");
@@ -812,6 +848,11 @@ function runTask(run) {
   if (run.mode === "test") {
     window.testStart();
     $("testCard").scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  if (run.mode === "pack") {
+    window.packStart(run.pack, run.stage);
+    $("packCard").scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
   if (run.mode === "pct") {
@@ -861,7 +902,7 @@ function renderPace() {
   if (!el) return;
   el.innerHTML = paceZones().map(z => {
     const last = z.rounds.slice(0, PACE_WINDOW);           // rounds are stored newest first
-    if (!last.length) return `<div class="pz"><div class="barlbl"><span><b>${z.icon} ${z.name}</b></span><span>no rounds yet · target ${z.target}s</span></div><div class="bar"><div style="width:0"></div></div></div>`;
+    if (!last.length) return `<div class="pz"><div class="barlbl"><span><b>${z.icon} ${z.name}</b></span><span>no rounds yet | target ${z.target}s</span></div><div class="bar"><div style="width:0"></div></div></div>`;
     const t = weightedAvg(last, "avg"), acc = weightedAvg(last, "acc");
     const fill = Math.min(1, z.target / t), reached = t <= z.target;
     const color = reached ? "var(--green)" : fill >= 0.75 ? "#8fc5a8" : fill >= 0.5 ? "#e0b44c" : "#e08a6c";
@@ -869,13 +910,13 @@ function renderPace() {
     let trend = "";
     if (prev.length >= 3) {
       const d = weightedAvg(prev, "avg") - t;
-      if (Math.abs(d) >= 0.2) trend = d > 0 ? ` · <span class="ok">▼ ${d.toFixed(1)}s faster than before</span>` : ` · <span class="slow">▲ ${(-d).toFixed(1)}s slower than before</span>`;
+      if (Math.abs(d) >= 0.2) trend = d > 0 ? ` | <span class="ok">▼ ${d.toFixed(1)}s faster than before</span>` : ` | <span class="slow">▲ ${(-d).toFixed(1)}s slower than before</span>`;
     }
     const accTxt = `${Math.round(acc)}% right` + (acc >= z.accGoal ? " ✓" : ` (goal ${z.accGoal}%)`);
     return `<div class="pz">
       <div class="barlbl"><span><b>${z.icon} ${z.name}</b></span><span>now <b>${t.toFixed(1)}s</b> → target ${z.target}s ${reached ? "✅" : ""}</span></div>
       <div class="bar"><div style="width:${Math.round(fill * 100)}%;background:${color}"></div></div>
-      <div class="hint">${Math.round(fill * 100)}% of target speed · ${accTxt}${trend} <span class="how">(last ${last.length} round${last.length > 1 ? "s" : ""})</span></div>
+      <div class="hint">${Math.round(fill * 100)}% of target speed | ${accTxt}${trend} <span class="how">(last ${last.length} round${last.length > 1 ? "s" : ""})</span></div>
     </div>`;
   }).join("");
 }
@@ -951,7 +992,7 @@ function shortcutSteps(f, n) {
             `take back ${k === 1 ? "one" : k} × ${f} = ${fmt(k * f)}`, `${fmt(f * up)} − ${fmt(k * f)} = ${B(p)}`];
   }
   if (n <= 10) return factorRuleSteps(f, n);
-  if (f === 25 && n % 4 === 0) return factorRuleSteps(f, n);        // clean quarter: 25 × 16 = 16 ÷ 4 = 4 → 400
+  if (f === 25 && n % 4 === 0) return factorRuleSteps(f, n);        // clean quarter: 25 × 16 = 16 / 4 = 4 → 400
   const t = n - u;
   return [`${n} = ${t} + ${u} → keep ${f}, break ${n}`, `${f} × ${t} = ${fmt(f * t)}`, `${f} × ${u} = ${fmt(f * u)}`, `${fmt(f * t)} + ${fmt(f * u)} = ${B(p)}`];
 }
@@ -964,7 +1005,7 @@ function howShort(f, n) {
   if (last.startsWith("add one zero")) return `${st[st.length - 2].split(" = ").pop()} → add a 0`;
   if (last.startsWith("add two zeros")) return `${st[st.length - 2].split(" = ").pop()} → add 00`;
   if (last.startsWith("add ")) return `${fmt(10 * n)} + ${n}`;                    // ×11
-  if (f === 25 && st[0].startsWith("25 is a quarter")) return `${n} ÷ 4 = ${fmt(n / 4)} → × 100`;
+  if (f === 25 && st[0].startsWith("25 is a quarter")) return `${n} / 4 = ${fmt(n / 4)} → × 100`;
   if (last.includes(" = ")) return last.slice(0, last.lastIndexOf(" = "));
   return "";
 }
@@ -982,7 +1023,7 @@ function factorRuleSteps(f, n) {
   switch (f) {
     case 12: return [`12 = 10 + 2`, `10 × ${n} = ${fmt(10 * n)}`, `2 × ${n} = ${fmt(2 * n)}`, `${fmt(10 * n)} + ${fmt(2 * n)} = ${B(p)}`];
     case 15: return [`15 = 10 + half of 10`, `10 × ${n} = ${fmt(10 * n)}`, `half of that = ${fmt(5 * n)}`, `${fmt(10 * n)} + ${fmt(5 * n)} = ${B(p)}`];
-    case 25: return [`25 is a quarter of 100`, `${n} ÷ 4 = ${fmt(n / 4)}`, `${fmt(n / 4)} × 100 = ${B(p)}`];
+    case 25: return [`25 is a quarter of 100`, `${n} / 4 = ${fmt(n / 4)}`, `${fmt(n / 4)} × 100 = ${B(p)}`];
     case 30: return [`30 = 3 × 10`, `3 × ${n} = ${fmt(3 * n)}`, `add one zero → ${B(p)}`];
     case 50: return [`50 is half of 100`, `${n} × 100 = ${fmt(100 * n)}`, `half of that = ${B(p)}`];
     case 75: return [`75 = 100 − 25`, `100 × ${n} = ${fmt(100 * n)}`, `25 × ${n} = a quarter of that = ${fmt(25 * n)}`, `${fmt(100 * n)} − ${fmt(25 * n)} = ${B(p)}`];
@@ -1108,7 +1149,7 @@ function nextQuestion() {
   $("question").textContent = `${fmt(x)} × ${fmt(y)}`;
   if (learn) {
     const done = LEARN_MAX - new Set(game.queue.map(i => i.n).concat(q.n)).size;
-    $("progress").textContent = `📘 ×${q.f} · ${game.s.stage === "order" ? "Step 1" : "Step 2"} · ${done}/${LEARN_MAX} done` + (q.retry ? "  •  🔁 second try" : "");
+    $("progress").textContent = `📘 ×${q.f} | ${game.s.stage === "order" ? "Step 1" : "Step 2"} | ${done}/${LEARN_MAX} done` + (q.retry ? " | 🔁 second try" : "");
   } else {
     $("progress").textContent = `Question ${game.results.length + 1} of ${game.s.total}` + (q.fromWeak ? "  •  from your notebook" : "");
   }
@@ -1310,7 +1351,7 @@ function finishRound() {
                               : `Do Step 1 once more (tomorrow is fine). Aim for 18/20 right on the first try.`;
     else if (tableStatus(f) === "known")
       advice = `🎉 <b>×${f} is now ✅ known!</b> It will join your normal rounds. Keep it fresh there for a few days before starting the next table.`;
-    else if (slowCount >= 5) advice = `${slowCount} facts were right but slower than your ${game.s.target}s target, so they're at the first step (·). That's normal while learning. Tomorrow, try to answer them within the target time.`;
+    else if (slowCount >= 5) advice = `${slowCount} facts were right but slower than your ${game.s.target}s target, so they're at the first step (○). That's normal while learning. Tomorrow, try to answer them within the target time.`;
     else if (mNow === 0 && firstPct >= 80) advice = `Good first pass! Come back <b>tomorrow</b> and do Step 2 again. A fact is mastered after two good days, so today plants the seed and tomorrow locks it in.`;
     else advice = `Repeat Step 2 tomorrow (one round a day is plenty). A fact is mastered after on-time answers on two different days. Spacing it out is what makes it stick.`;
     if (finished && game.s.stage === "shuffle" && tableStatus(f) === "known" && !store.badges["learn_" + f]) {
@@ -1322,7 +1363,7 @@ function finishRound() {
     }
     saveStore();
     learnHtml = `<p><b>📘 ×${f}, ${game.s.stage === "order" ? "Step 1 (in order)" : "Step 2 (shuffled)"}:</b> right the first time ${firstOk}/${first.length} (${firstPct}%)` +
-      ` · table progress ${mBefore}% → <b>${pNow}%</b> (${mNow / 5} of 20 facts fully mastered)</p><p>${advice}</p>`;
+      ` | table progress ${mBefore}% → <b>${pNow}%</b> (${mNow / 5} of 20 facts fully mastered)</p><p>${advice}</p>`;
     renderMastery();
   }
 
@@ -1556,7 +1597,7 @@ window.onload = function () {
   function next() {
     if (sg.i >= ROUND_LEN) return finish();
     sg.q = makeRow(); sg.locked = false; sg.t0 = Date.now();
-    el("sumsProgress").textContent = `Row ${sg.i + 1} of ${ROUND_LEN} · ${sg.right} right`;
+    el("sumsProgress").textContent = `Row ${sg.i + 1} of ${ROUND_LEN} | ${sg.right} right`;
     renderRow(sg.q);
     el("sumsAnswer").value = ""; el("sumsAnswer").disabled = false; el("sumsAnswer").focus();
     el("sumsResult").textContent = ""; el("sumsResult").className = "";
@@ -1577,11 +1618,11 @@ window.onload = function () {
     const slow = sec > SLOW_SEC;
     if (ok) sg.right++;
     el("sumsResult").textContent = ok
-      ? (Math.abs(off) <= GREAT ? `✅ Great — only ${pct}% off` : `✅ Right — ${pct}% off`) + (slow ? ` · but slow (${sec.toFixed(1)}s, aim < ${SLOW_SEC}s)` : ` · ${sec.toFixed(1)}s`)
+      ? (Math.abs(off) <= GREAT ? `✅ Great — only ${pct}% off` : `✅ Right — ${pct}% off`) + (slow ? ` | but slow (${sec.toFixed(1)}s, aim < ${SLOW_SEC}s)` : ` | ${sec.toFixed(1)}s`)
       : `❌ ${pct}% ${off > 0 ? "too high" : "too low"} — check the zeros`;
     el("sumsResult").className = ok ? (slow ? "slow" : "ok") : "bad";
     el("sumsExplain").innerHTML = methodHTML(q.nums) +
-      `<b>Exact total:</b> ${q.exact.toLocaleString("en-US")} · you said ${val.toLocaleString("en-US")}`;
+      `<b>Exact total:</b> ${q.exact.toLocaleString("en-US")} | you said ${val.toLocaleString("en-US")}`;
     el("sumsExplain").style.display = "block";
     el("sumsNextHint").style.display = "block";
     if (!ok || slow) {
@@ -1608,11 +1649,11 @@ window.onload = function () {
       rec.rounds++;
       const xp = 5 * sg.right + 15;
       store.xp += xp;
-      extra = ` · <b>+${xp} XP</b>` + (first ? ` · 🔥 today counts for your streak` : "");
+      extra = ` | <b>+${xp} XP</b>` + (first ? ` | 🔥 today counts for your streak` : "");
     }
     saveStore();
     renderMotivation();
-    el("sumsSummary").innerHTML = `<div class="celebrate"><b>Round done:</b> ${sg.right}/${n} within ±10% · average ${avg.toFixed(1)}s per row` +
+    el("sumsSummary").innerHTML = `<div class="celebrate"><b>Round done:</b> ${sg.right}/${n} within ±10% | average ${avg.toFixed(1)}s per row` +
       (avg <= 10 && sg.right >= n * 0.8 ? " — exhibit-ready pace 🎯" : ` — goal: 8/10 right at under 10s`) + extra + `</div>`;
     // same "Next" button as the multiplication rounds
     const nb = document.createElement("button");
@@ -1696,55 +1737,64 @@ window.onload = function () {
     for (const [m, how] of [[1, ""], [2, "double both"], [4, "×4 both"], [5, "×5 both"], [8, "×8 both"]]) {
       const dd = d * m;
       if (Math.abs(dd - Math.round(dd)) < 1e-9 && /^10*$/.test(String(Math.round(dd))))
-        return m === 1 ? `${F(P)} ÷ ${F(d)} = ${F(P / d)}` : `${F(P)} ÷ ${F(d)} → ${how}: ${F(P * m)} ÷ ${F(dd)} = ${F(P / d)}`;
+        return m === 1 ? `${F(P)} / ${F(d)} = ${F(P / d)}` : `${F(P)} / ${F(d)} → ${how}: ${F(P * m)} / ${F(dd)} = ${F(P / d)}`;
     }
     return null;
   }
-  // ---------- "What % is it?" — compact, mental-math friendly ----------
-  // Walk the 10% steps (down from 100% if the part is over half, up from 0% if not), then count the leftover 1%s.
+  // ---------- "What % is it?" — her method: Shrink, Anchor (both neighbours), Adjust ----------
+  // 0) Half check. If the part is more than half, use the same 3 steps on the missing piece, then 100% minus it.
+  // 1) Shrink: cut the same zeros from both so the whole has 2 digits.
+  // 2) Anchor: how many parts fit in the whole? Say the number below AND above → between 1/(n+1) and 1/n.
+  // 3) Adjust: where does the whole sit between the two neighbours?
   function shareMethod(q) {
-    const { P, W } = q, T = W / 10, O = W / 100;
-    const k = Math.floor(P / T + 1e-9);
-    // stop at the NEAREST 10% step — even if it's just above the number — then fix the small gap
-    const up = (k + 1) * T - P, down = P - k * T;
-    const st = up < down ? k + 1 : k, above = st * T > P;
-    const fmtStep = j => `${F(j * T)} (${j * 10}%)`;
-    let walk;
-    if (P > W / 2) {                         // more than half: walk down from 100%
-      const steps = [`${F(W)}`];
-      for (let j = 9; j >= st; j--) steps.push(fmtStep(j));
-      walk = `walk down: ${steps.join(" → ")}`;
-    } else if (st === 0) walk = `${F(P)} is closer to 0 than to ${F(T)} (10%)`;
-    else {                                    // less than half: walk up from 0%
-      const steps = [];
-      for (let j = 1; j <= st; j++) steps.push(fmtStep(j));
-      walk = `walk up: ${steps.join(" → ")}`;
+    const { P, W } = q, half = W / 2;
+    const over = P > half, Q = over ? W - P : P;              // Q = the piece we anchor
+    const pctQ = 100 * Q / W, exact = 100 * P / W;
+    let s = `<b>⓪ Half check:</b> half of ${F(W)} is ${F(half)} → ${F(P)} is ` +
+      (over ? `<b>more than half</b>, so anchor the <b>missing piece</b>: ${F(W)} − ${F(P)} = ${F(Q)}<br>`
+            : `<b>${P === half ? "exactly half" : "less than half"}</b>, so use the part directly<br>`);
+    // 1) Shrink
+    const z = Math.max(0, Math.floor(Math.log10(W)) - 1), div = 10 ** z;
+    const r1 = x => Math.round(x * 10) / 10;
+    const q1 = r1(Q / div), w1 = r1(W / div);
+    s += `<b>① Shrink:</b> ` + (z === 0 ? `already small: ${F(q1)} of ${F(w1)}` :
+      `move the decimal ${z === 1 ? "1 place" : z + " places"} in both → ${F(Q)} → ${F(q1)}, ${F(W)} → ${F(w1)} → think "${F(q1)} of ${F(w1)}"`) + `<br>`;
+    // 2) Anchor
+    const n = Math.floor(w1 / q1 + 1e-9), lo = r1(q1 * n), hi = r1(q1 * (n + 1));
+    const nm = k => (k === 1 ? "1/1" : "1/" + k), pc = k => F(100 / k, 1);
+    let ans = Math.round(pctQ);
+    const near = k => Math.abs(w1 - q1 * k) <= 0.03 * w1;
+    if (n >= 10) {
+      const one = W / 100;
+      s += `<b>② Anchor:</b> ${F(q1)} fits in ${F(w1)} more than 10 times → under 10%. Count in 1%s: 1% of ${F(W)} = ${F(one, 2)} → ${F(Q)} is about ${F(ans)} × ${F(one, 2)} → <b>${F(ans)}%</b><br>`;
+    } else if (near(n) || near(n + 1)) {
+      const k = near(n) ? n : n + 1, v = r1(q1 * k);
+      s += `<b>② Anchor:</b> ${F(q1)} × ${k} = ${F(v)}, ${v === w1 ? "exactly" : "almost exactly"} ${F(w1)} → fits ${v === w1 ? "" : "about "}${k} times → 1/${k} = ${pc(k)}%<br>` +
+           `<b>③ Adjust:</b> nothing to adjust, the anchor is the answer → <b>${F(ans)}%</b><br>`;
+    } else {
+      s += `<b>② Anchor:</b> ${F(q1)} × ${n} = ${F(lo)} (below ${F(w1)}), ${F(q1)} × ${n + 1} = ${F(hi)} (above ${F(w1)})<br>` +
+           `&nbsp;&nbsp;→ fits between ${n} and ${n + 1} times → between ${nm(n + 1)} and ${nm(n)}: between ${pc(n + 1)}% and ${pc(n)}%<br>`;
+      const t = (w1 - lo) / (hi - lo);
+      let where;
+      if (t < 0.35) where = `${F(w1)} is closer to ${F(lo)}, so closer to ${pc(n)}% → about <b>${F(ans)}%</b>`;
+      else if (t > 0.65) where = `${F(w1)} is closer to ${F(hi)}, so closer to ${pc(n + 1)}% → about <b>${F(ans)}%</b>`;
+      else where = `${F(w1)} is about the middle of ${F(lo)} and ${F(hi)}, so about the middle of ${pc(n + 1)}% and ${pc(n)}% → about <b>${F(ans)}%</b>`;
+      s += `<b>③ Adjust:</b> ${where}<br>`;
     }
-    walk += st === 0 ? ` → start from <b>0%</b>` : above ? ` ← just <b>above</b> ${F(P)}, the nearest step → <b>${st * 10}%</b>` : ` ← just below ${F(P)}, the nearest step → <b>${st * 10}%</b>`;
-    const G = Math.round(Math.abs(P - st * T) * 100) / 100;
-    const nO = Number.isInteger(O) ? O : Math.max(1, Math.round(O));
-    const r = Math.round(G / O);
-    const oneTxt = `1% of ${F(W)} = ${F(O, 2)}${nO !== O ? ` ≈ ${F(nO)}` : ""}`;
-    const gapTxt = above ? `${F(st * T)} − ${F(P)} = ${F(G)} too much` : `${F(P)} − ${F(st * T)} = ${F(G)} left`;
-    const left = G < O / 2 ? `${gapTxt}. ${oneTxt} → less than half of that → <b>0%</b>`
-      : `${gapTxt}. ${oneTxt} → how many ${F(nO)}s in ${F(G)}? ${F(nO)} × ${r} = ${F(nO * r)} ≈ ${F(G)} → <b>${r}%</b>`;
-    const tot = above ? st * 10 - r : st * 10 + r, half = W / 2;
-    const cmp = P > half * 1.05 ? "more than half" : P < half * 0.95 ? "less than half" : "about half";
-    let s = `<b>① Nearest 10% step:</b> 10% of ${F(W)} = ${F(T)} → ${walk}<br>` +
-            `<b>② The gap in 1%s:</b> ${left}<br>` +
-            `<b>③ ${above ? "Subtract" : "Add up"}:</b> ${st * 10}% ${above ? "−" : "+"} ${r}% ≈ <b>${tot}%</b> (check: ${cmp} ✓)<br>`;
-    s += `<span class="how">Say it: "${F(P)} out of ${F(W)} is roughly ${tot} percent, ${cmp}."</span><br>`;
+    const tot = over ? 100 - ans : ans;
+    if (over) s += `<b>④ Missing piece back:</b> 100% − ${F(ans)}% = <b>${F(tot)}%</b><br>`;
+    s += `<span class="how">Say it: "${F(P)} out of ${F(W)}: ${over ? `the missing ${F(Q)} is about ${F(ans)} percent, so ` : ""}roughly ${F(tot)} percent."</span><br>`;
     return s;
   }
   function ofMethod(q) {
     const { p, N } = q, t = N / 10, r = q.exact;
     let s;
-    if (p === 50) s = `50% = half → ${F(N)} ÷ 2 = <b>${F(r)}</b>`;
+    if (p === 50) s = `50% = half → ${F(N)} / 2 = <b>${F(r)}</b>`;
     else if (p === 25) s = `25% = a quarter → half of half: ${F(N / 2)} → <b>${F(r)}</b>`;
     else if (p === 75) s = `75% = 100% − 25% → ${F(N)} − ${F(N / 4)} = <b>${F(r)}</b>`;
     else if (p === 12.5) s = `12.5% = an eighth → half, half, half: ${F(N / 2)} → ${F(N / 4)} → <b>${F(r)}</b>`;
-    else if (p < 10) s = `1% = ${F(N)} ÷ 100 = ${F(N / 100, 2)} → × ${p} = <b>${F(r)}</b>`;
-    else if (p % 10 === 0) s = `10% = ${F(N)} ÷ 10 = ${F(t)} → × ${p / 10} = <b>${F(r)}</b>`;
+    else if (p < 10) s = `1% = ${F(N)} / 100 = ${F(N / 100, 2)} → × ${p} = <b>${F(r)}</b>`;
+    else if (p % 10 === 0) s = `10% = ${F(N)} / 10 = ${F(t)} → × ${p / 10} = <b>${F(r)}</b>`;
     else {                                       // 15, 35, 45, 55, 65…: (p−5)% + 5%
       const base = p - 5, baseV = N * base / 100;
       const baseTxt = base === 50 ? `50% = half = ${F(baseV)}` : `${base}% = 10% × ${base / 10} = ${F(t)} × ${base / 10} = ${F(baseV)}`;
@@ -1758,11 +1808,16 @@ window.onload = function () {
   function sheetHTML() {
     const rows = [["1/2", 50], ["1/3", 33.3], ["2/3", 66.7], ["1/4", 25], ["3/4", 75], ["1/5", 20], ["1/6", 16.7], ["1/7", 14.3],
                   ["1/8", 12.5], ["3/8", 37.5], ["1/9", 11.1], ["1/10", 10], ["1/12", 8.3], ["1/20", 5], ["1/25", 4], ["1/50", 2]];
-    return `<p><b>The 3 steps for "What % is it?"</b> (work for any numbers)<br>① <b>Nearest 10% step</b>: 10% = whole without its <b>last</b> digit (6,500 → 650, not 65!). Walk the steps, don't divide: <b>down from 100%</b> if the part is over half, <b>up from 0%</b> if not. Stop at the step <b>closest</b> to your number, even if it's just above it.<br>② <b>The gap in 1%s</b>: 1% = whole without its last <b>two</b> digits (6,500 → 65). How many 65s in the gap? Always 0–5.<br>③ <b>Add or subtract</b> the gap, then check against half. Example: 2,540 of 6,500 → 650, 1,300, 1,950, <b>2,600 (40%)</b> is 60 too much → 60 ≈ 1 × 65 → 40% − 1% = <b>39%</b>.</p>` +
-      `<p><b>For "How much is X%?":</b> build it from 10% (÷10), 5% (half of 10%), 1% (÷100), half and quarter. 35% = 30% + 5%. 45% = 50% − 5%.</p>` +
+    return `<p><b>"What % is it?" in your head: Shrink, Anchor, Adjust</b><br>` +
+      `⓪ <b>Half check:</b> is the part more than half of the whole? If yes, do the 3 steps on the <b>missing piece</b> (whole − part), then 100% minus it.<br>` +
+      `① <b>Shrink:</b> cut the same zeros from both numbers (1,250 of 5,600 → 12.5 of 56).<br>` +
+      `② <b>Anchor:</b> how many parts fit in the whole? Say <b>both</b> neighbours: 12.5 × 4 = 50 (below 56), 12.5 × 5 = 62.5 (above) → between 1/5 and 1/4, between 20% and 25%.<br>` +
+      `③ <b>Adjust:</b> where does the whole sit between the neighbours? 56 is about the middle → about <b>22%</b>.<br>` +
+      `<span class="how">The "times" number is never the %: fits 4 times = 1/4 = 25%. Fits more times = smaller %.</span></p>` +
+      `<p><b>For "How much is X%?":</b> build it from 10% (divide by 10), 5% (half of 10%), 1% (divide by 100), half and quarter. 35% = 30% + 5%. 45% = 50% − 5%.</p>` +
       `<p><b>Fractions ↔ %</b> (learn these by heart: they turn divisions into recognition)</p>` +
       `<div class="sheetgrid">${rows.map(([f, v]) => `<div>${f} = <b>${F(v)}%</b></div>`).join("")}</div>` +
-      `<p class="how">Example from Wadi Airways: 2,170 of 5,000 → 10% = 500 → walk up: 500, 1,000, 1,500, <b>2,000 (40%)</b> is nearest. Then 170 left; 1% of 5,000 = 50 → how many 50s in 170? 50 × 3 = 150 → <b>3%</b> → <b>~43%</b> (less than half ✓)</p>`;
+      `<p class="how">Example, more than half: 2,550 of 3,400 → missing piece 850 → 8.5 of 34 → 8.5 × 4 = 34 exactly → missing 1/4 = 25% → <b>75%</b></p>`;
   }
 
   // ---------- round flow ----------
@@ -1782,7 +1837,7 @@ window.onload = function () {
     if (pg.i >= ROUND_LEN) return finish();
     pg.q = pg.kinds[pg.i] === "share" ? makeShare() : makeOf();
     pg.locked = false; pg.t0 = Date.now();
-    el("pctProgress").textContent = `Question ${pg.i + 1} of ${ROUND_LEN} · ${pg.right} right`;
+    el("pctProgress").textContent = `Question ${pg.i + 1} of ${ROUND_LEN} | ${pg.right} right`;
     el("pctKind").textContent = pg.q.kind === "share" ? "What % is it?  (answer in %)" : "How much is X%?  (answer in the same unit)";
     el("pctQ").innerHTML = pg.q.text;
     el("pctAnswer").placeholder = pg.q.kind === "share" ? "e.g. 43" : "e.g. 264";
@@ -1813,11 +1868,11 @@ window.onload = function () {
     if (ok) pg.right++;
     const exactTxt = q.kind === "share" ? `${F(q.exact)}%` : F(q.exact);
     el("pctResult").textContent = ok
-      ? (great ? "✅ Spot on" : "✅ Close enough") + (slow ? ` · but slow (${sec.toFixed(1)}s, aim < ${SLOW_SEC}s)` : ` · ${sec.toFixed(1)}s`)
+      ? (great ? "✅ Spot on" : "✅ Close enough") + (slow ? ` | but slow (${sec.toFixed(1)}s, aim < ${SLOW_SEC}s)` : ` | ${sec.toFixed(1)}s`)
       : `❌ ${offTxt}`;
     el("pctResult").className = ok ? (slow ? "slow" : "ok") : "bad";
     el("pctExplain").innerHTML = (q.kind === "share" ? shareMethod(q) : ofMethod(q)) +
-      `<b>Exact:</b> ${exactTxt} · you said ${F(val)}${q.kind === "share" ? "%" : ""}`;
+      `<b>Exact:</b> ${exactTxt} | you said ${F(val)}${q.kind === "share" ? "%" : ""}`;
     el("pctExplain").style.display = "block"; el("pctNextHint").style.display = "block";
     if (!ok || slow) {
       const d = data();
@@ -1841,12 +1896,12 @@ window.onload = function () {
       const rec = todayRec(), first = rec.rounds === 0;
       rec.rounds++;
       const xp = 5 * pg.right + 15; store.xp += xp;
-      extra = ` · <b>+${xp} XP</b>` + (first ? " · 🔥 today counts for your streak" : "");
+      extra = ` | <b>+${xp} XP</b>` + (first ? " | 🔥 today counts for your streak" : "");
     }
     addTodayQuestions(n);
     saveStore();
     renderMotivation();
-    el("pctSummary").innerHTML = `<div class="celebrate"><b>Round done:</b> ${pg.right}/${n} right · average ${avg.toFixed(1)}s` +
+    el("pctSummary").innerHTML = `<div class="celebrate"><b>Round done:</b> ${pg.right}/${n} right | average ${avg.toFixed(1)}s` +
       (pg.right >= n * 0.8 && avg <= 12 ? " — case-ready 🎯" : " — goal: 8/10 right, about 12s each") + extra + `</div>`;
     const nb = document.createElement("button");
     nb.textContent = el("nextBtn").textContent.replace("▶ Start:", "▶ Next:");
@@ -1876,6 +1931,369 @@ window.onload = function () {
     document.addEventListener("keydown", e => { if (e.key === "Enter" && pg && pg.locked && e.target !== el("pctAnswer")) { e.preventDefault(); check(); } });
     el("pctStopBtn").addEventListener("click", () => { if (pg) finish(); });
     el("pctClear").addEventListener("click", () => { if (confirm("Clear percentage mistakes?")) { data().mistakes = []; saveStore(); renderMistakes(); } });
+  });
+})();
+</script>
+<script>
+// =====================================================================
+// LEARN PACKS — anchors, neighbours, easy divisors, zeros, case division, cubes
+// Learned like a table: cheat sheet → Step 1 (in order) → Step 2 (shuffled, timed)
+// A card is mastered when it's right AND on time on two different days (same rule as the tables).
+// Packs unlock one at a time: the first one after ×50 is known, then each after the previous is known.
+// Card progress lives in store.facts under "pk:<pack>:<card>", rounds under store.packs.rounds.
+// =====================================================================
+(function () {
+  const N_CARDS = 20, STEP1_PASS = 18, KNOWN_SHARE = 0.9;
+  const el = id => document.getElementById(id);
+  const F = (x, d = 2) => x.toLocaleString("en-US", { maximumFractionDigits: d });
+  const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const frac = (a, b) => `<span class="pkfrac"><span>${a}</span><span>${b}</span></span>`;
+
+  function data() {
+    if (!store.packs) store.packs = { rounds: [], step1: {}, passed: {} };
+    if (!store.packs.rounds) store.packs.rounds = [];
+    if (!store.packs.step1) store.packs.step1 = {};
+    if (!store.packs.passed) store.packs.passed = {};
+    return store.packs;
+  }
+
+  // "1,200,000" → "1.2M", "450,000" → "450,000"
+  function big(x) {
+    if (x >= 1e9) return F(x / 1e9) + "bn";
+    if (x >= 1e6) return F(x / 1e6) + "M";
+    return F(x);
+  }
+  // split a whole number into its digits without the trailing zeros, and the count of zeros: 1,200,000 → [12, 5]
+  function sig(x) { let z = 0; while (x >= 10 && x % 10 === 0) { x /= 10; z++; } return [x, z]; }
+  const zerosTxt = z => z === 1 ? "1 zero" : `${z} zeros`;
+
+  // ---------------- 1. ANCHORS ----------------
+  const ANCH = [
+    [1, 2, 50, "a half"], [1, 3, 33, "100 / 3 ≈ 33"], [2, 3, 67, "2 thirds: 2 × 33 ≈ 67"], [1, 4, 25, "half of a half: 50 → 25"],
+    [3, 4, 75, "100 − a quarter: 100 − 25 = 75"], [1, 5, 20, "100 / 5 = 20"], [1, 6, 17, "half of a third: 33 / 2 ≈ 17"],
+    [1, 7, 14, "7 × 14 = 98, so ≈ 14"], [1, 8, 12.5, "half, half, half: 50 → 25 → 12.5"], [1, 9, 11, "9 × 11 = 99, so ≈ 11"],
+    [1, 10, 10, "100 / 10 = 10"]
+  ];
+  const ANCH_REV = ANCH.filter(a => a[0] === 1 && a[1] !== 3).concat([ANCH[1]]).sort((x, y) => x[1] - y[1]);  // 1/2 … 1/10
+  function anchorCard(i) {
+    if (i < ANCH.length) {
+      const [a, b, p, why] = ANCH[i];
+      return { q: `${frac(a, b)} = ?%`, ans: p, tol: 0.5, unit: "%", how: `${a}/${b} = <b>${F(p, 1)}%</b> (${why})` };
+    }
+    const [, b, p, why] = ANCH_REV[i - ANCH.length];
+    return { q: `${F(p, 1)}% = 1/?`, ans: b, tol: 0, unit: "", how: `${F(p, 1)}% = <b>1/${b}</b> (${why})` };
+  }
+
+  // ---------------- 2. NEIGHBOURS ----------------
+  function neighbourCard(i) {
+    for (let k = 0; k < 200; k++) {
+      const p = i < 10 ? rnd(6, 30) : rnd(5, 24) + 0.5;
+      const n = rnd(2, 9);
+      const w = Math.round(p * n + p * (0.15 + 0.7 * Math.random()));
+      if (w < 12 || w > 99 || Math.floor(w / p + 1e-9) !== n) continue;
+      const lo = p * n, hi = p * (n + 1);
+      return { q: `How many whole times does <b>${F(p, 1)}</b> fit in <b>${w}</b>?`, ans: n, tol: 0, unit: "",
+        how: `${F(p, 1)} × ${n} = ${F(lo, 1)} (below ${w})<br>${F(p, 1)} × ${n + 1} = ${F(hi, 1)} (above ${w})<br>` +
+             `Fits between ${n} and ${n + 1} times → <b>${n}</b><br>` +
+             `<span class="how">So ${F(p, 1)} of ${w} is between 1/${n + 1} and 1/${n}: between ${F(100 / (n + 1), 0)}% and ${F(100 / n, 0)}%</span>` };
+    }
+    return neighbourCard(i);
+  }
+
+  // ---------------- 3. EASY DIVISORS ----------------
+  const DIVS = [
+    { d: 5,  rule: "Divided by 5 = × 2, then divided by 10", gen: () => 5 * rnd(30, 400),  how: N => `${F(N)} × 2 = ${F(N * 2)}<br>${F(N * 2)} / 10 = <b>${F(N / 5)}</b>` },
+    { d: 25, rule: "Divided by 25 = × 4, then divided by 100", gen: () => 25 * rnd(12, 160), how: N => `${F(N)} × 4 = ${F(N * 4)}<br>${F(N * 4)} / 100 = <b>${F(N / 25)}</b>` },
+    { d: 50, rule: "Divided by 50 = × 2, then divided by 100", gen: () => 50 * rnd(12, 99),  how: N => `${F(N)} × 2 = ${F(N * 2)}<br>${F(N * 2)} / 100 = <b>${F(N / 50)}</b>` },
+    { d: 4,  rule: "Divided by 4 = halve twice",               gen: () => 4 * rnd(30, 250),  how: N => `half: ${F(N / 2)}<br>half again: <b>${F(N / 4)}</b>` },
+    { d: 8,  rule: "Divided by 8 = halve three times",         gen: () => 8 * rnd(15, 125),  how: N => `half: ${F(N / 2)}<br>half: ${F(N / 4)}<br>half: <b>${F(N / 8)}</b>` },
+    { d: 20, rule: "Divided by 20 = divided by 10, then halve", gen: () => 20 * rnd(12, 150), how: N => `${F(N)} / 10 = ${F(N / 10)}<br>half: <b>${F(N / 20)}</b>` }
+  ];
+  function divisorCard(i) {
+    const D = DIVS[i % DIVS.length], N = D.gen();
+    return { q: `${F(N)} divided by ${D.d} = ?`, ans: N / D.d, tol: 0, unit: "", how: `<b>${D.rule}</b><br>${D.how(N)}` };
+  }
+
+  // ---------------- 4. ZEROS AND SIMPLIFYING ----------------
+  const SIMP = [[3, 4], [2, 3], [1, 4], [3, 5], [2, 5], [4, 5], [5, 6], [3, 8], [5, 8], [7, 10], [1, 3], [1, 6]];
+  function zerosCard(i) {
+    if (i % 2 === 0) {                                   // simplify a fraction
+      const [a, b] = pick(SIMP), m = rnd(2, 15), z = pick([1, 2]), mul = m * 10 ** z;
+      const A = a * mul, B = b * mul;
+      return { q: `Simplify: ${frac(F(A), F(B))} = ?/${b}`, ans: a, tol: 0, unit: "",
+        how: `Cut the same zeros from both (${zerosTxt(z)}): ${frac(a * m, b * m)}<br>` +
+             `Both are in the ×${m} table: ${a * m} = ${a} × ${m}, ${b * m} = ${b} × ${m}<br>So <b>${a}/${b}</b>` };
+    }
+    for (let k = 0; k < 100; k++) {                      // divide with zeros
+      const a = rnd(2, 9), b = rnd(2, 9);
+      if ((a * b) % 10 === 0) continue;
+      const x = rnd(2, 4), y = rnd(1, 3), ans = a * 10 ** x, d = b * 10 ** y, N = ans * d;
+      const [sN, zN] = sig(N), [sD, zD] = sig(d);
+      return { q: `${big(N)} divided by ${F(d)} = ?`, ans, tol: 0, unit: "",
+        how: `Write the numbers in full: ${F(N)} and ${F(d)}<br>` +
+             `Without zeros: ${sN} (${zerosTxt(zN)}) and ${sD} (${zerosTxt(zD)})<br>` +
+             `${sN} / ${sD} = ${sN / sD}<br>Zeros left: ${zN} − ${zD} = ${zN - zD}<br>Answer: <b>${F(ans)}</b>` };
+    }
+  }
+
+  // ---------------- 5. CASE DIVISION ----------------
+  function caseCard(i) {
+    const t = i % 4;
+    for (let k = 0; k < 100; k++) {
+      if (t === 0) {                                     // payback
+        const p = rnd(2, 9) * pick([1e5, 1e6]), yrs = rnd(2, 8), inv = p * yrs;
+        return { q: `Investment: $${big(inv)}<br>Profit: $${big(p)} a year<br>Payback in years?`, ans: yrs, tol: 0, unit: "",
+          how: `Payback = ${frac("Investment", "P per year")}<br>= ${frac("$" + big(inv), "$" + big(p))}<br>= <b>${yrs} years</b>` };
+      }
+      const a = rnd(2, 9), b = rnd(2, 9);
+      if ((a * b) % 10 === 0) continue;
+      if (t === 1) {                                     // revenue per customer
+        const per = a * pick([100, 1000]), n = b * pick([100, 1000, 10000]), rev = per * n;
+        return { q: `Revenue: $${big(rev)}<br>#Customers: ${F(n)}<br>Revenue per customer?`, ans: per, tol: 0, unit: "",
+          how: `Revenue per customer = ${frac("Revenue", "#Customers")}<br>= ${frac(F(rev), F(n))}<br>` + zerosHow(rev, n, per) };
+      }
+      if (t === 2) {                                     // cost per unit
+        const per = a * pick([10, 100]), n = b * pick([1000, 10000, 100000]), cost = per * n;
+        return { q: `Total costs: $${big(cost)}<br>#Units: ${F(n)}<br>Cost per unit?`, ans: per, tol: 0, unit: "",
+          how: `Cost per unit = ${frac("Total costs", "#Units")}<br>= ${frac(F(cost), F(n))}<br>` + zerosHow(cost, n, per) };
+      }
+      const m = a * pick([10, 100]), units = b * pick([1000, 10000]), cf = m * units;  // break-even
+      return { q: `Fixed costs: $${big(cf)} a year<br>Margin: $${m} per unit<br>Break-even #units?`, ans: units, tol: 0, unit: "",
+        how: `#Units<sub>BE</sub> = ${frac("Fixed costs", "Margin per unit")}<br>= ${frac(F(cf), F(m))}<br>` + zerosHow(cf, m, units) };
+    }
+  }
+  function zerosHow(N, d, ans) {
+    const [sN, zN] = sig(N), [sD, zD] = sig(d);
+    return `Without zeros: ${sN} / ${sD} = ${sN / sD}<br>Zeros left: ${zN} − ${zD} = ${zN - zD}<br>Answer: <b>${F(ans)}</b>`;
+  }
+
+  // ---------------- 6. CUBES ----------------
+  function cubeCard(i) {
+    const n = (i % 10) + 2, c = n ** 3;
+    return i < 10
+      ? { q: `${n}³ = ?`, ans: c, tol: 0, unit: "", how: `${n} × ${n} = ${n * n}<br>${n * n} × ${n} = <b>${F(c)}</b>` }
+      : { q: `Cube root of ${F(c)} = ?`, ans: n, tol: 0, unit: "", how: `Which number × itself × itself = ${F(c)}?<br>${n} × ${n} × ${n} = ${F(c)} → <b>${n}</b>` };
+  }
+
+  const PACKS = [
+    { id: "anchors", name: "Anchors: fractions and %", target: 6, make: anchorCard, fixed: true,
+      rule: "The 11 anchors from your guide, both ways. They are what you compare with in Shrink, Anchor, Adjust." },
+    { id: "neighbours", name: "Neighbours: how many fit?", target: 10, make: neighbourCard,
+      rule: "The Anchor step of your percentage method: say the number <b>below</b> and the number <b>above</b>, then answer with the lower one. Example: 12.5 in 56 → 12.5 × 4 = 50 (below), 12.5 × 5 = 62.5 (above) → <b>4</b>." },
+    { id: "divisors", name: "Easy divisors", target: 10, make: divisorCard,
+      rule: "Divided by 5 = × 2, then divided by 10. Divided by 25 = × 4, then divided by 100. Divided by 50 = × 2, then divided by 100. Divided by 4 = halve twice. Divided by 8 = halve three times. Divided by 20 = divided by 10, then halve." },
+    { id: "zeros", name: "Zeros and simplifying", target: 15, make: zerosCard,
+      rule: "<b>Simplify:</b> cut the same zeros from both, then find the table both numbers are in (450/600 → 45/60 → 3 × 15 / 4 × 15 → 3/4).<br><b>Divide with zeros:</b> write the numbers without zeros, divide, then zeros left = zeros on top − zeros below (1.2M / 300 → 12 / 3 = 4, zeros 5 − 2 = 3 → 4,000)." },
+    { id: "casediv", name: "Case division: per unit, payback, break-even", target: 20, make: caseCard,
+      rule: "Say the formula in words first, then the numbers:<br>Payback = Investment / P per year<br>Revenue per customer = Revenue / #Customers<br>Cost per unit = Total costs / #Units<br>#Units<sub>BE</sub> = Fixed costs / Margin per unit<br>Then the zeros method: divide without zeros, zeros left = top − below." },
+    { id: "cubes", name: "Cubes", target: 6, make: cubeCard, fixed: true,
+      rule: "2³ to 11³ both ways: 8, 27, 64, 125, 216, 343, 512, 729, 1,000, 1,331. Cube roots come up in the online test." }
+  ];
+  const byId = id => PACKS.find(p => p.id === id);
+
+  // ---------------- progress ----------------
+  const key = (p, i) => `pk:${p}:${i}`;
+  function cardLevel(p, i) {
+    const x = store.facts[key(p, i)];
+    if (!x) return 0;
+    if (x.streak >= 2) return 3;
+    if (x.streak >= 1) return 2;
+    return x.right > 0 ? 1 : 0;
+  }
+  function step1Passed(p) { return !!data().passed[p]; }
+  function packProgress(p) {
+    let lv = 0; for (let i = 0; i < N_CARDS; i++) lv += cardLevel(p, i);
+    return (step1Passed(p) || data().step1[p] ? 0.1 : 0) + 0.9 * lv / (3 * N_CARDS);
+  }
+  function packKnown(p) { let m = 0; for (let i = 0; i < N_CARDS; i++) if (cardLevel(p, i) === 3) m++; return m >= KNOWN_SHARE * N_CARDS; }
+  function unlocked(idx) {
+    if (idx === 0) return typeof tableStatus === "function" && tableStatus(50) === "known";
+    return packKnown(PACKS[idx - 1].id);
+  }
+  function packStatus(idx) {
+    const p = PACKS[idx].id;
+    if (packKnown(p)) return "known";
+    if (!unlocked(idx)) return "locked";
+    return packProgress(p) > 0 ? "learning" : "new";
+  }
+  function currentPack() {                               // the one the plan schedules
+    for (let i = 0; i < PACKS.length; i++) { const s = packStatus(i); if (s === "learning" || s === "new") return i; }
+    return -1;
+  }
+  function updateCard(p, i, right, onTime) {
+    const k = key(p, i), x = store.facts[k] || (store.facts[k] = { right: 0, wrong: 0, streak: 0 });
+    if (right) x.right++; else x.wrong++;
+    const today = dayKey(new Date());
+    if (!(right && onTime)) { x.streak = 0; x.lastDay = null; }
+    else if (x.lastDay !== today) { x.streak++; x.lastDay = today; }     // one step per day → two different days
+  }
+  function packQsToday() {
+    const today = dayKey(new Date());
+    return data().rounds.filter(r => dayKey(new Date(r.date)) === today).reduce((a, r) => a + r.n, 0);
+  }
+
+  // ---------------- Today's plan task ----------------
+  function planTask() {
+    const idx = currentPack();
+    if (idx < 0) return null;
+    const P = PACKS[idx], today = dayKey(new Date());
+    const todays = data().rounds.filter(r => r.pack === P.id && dayKey(new Date(r.date)) === today && r.finished);
+    const name = `Learn pack ${P.name.split(":")[0]}`;
+    const anyToday = data().rounds.some(r => dayKey(new Date(r.date)) === today && r.finished);
+    if (!todays.length && anyToday && !data().rounds.some(r => r.pack === P.id))
+      return { done: true, title: `Learn pack: start ${P.name.split(":")[0]} tomorrow`, sub: "You finished a pack today. One pack at a time, so the next one starts tomorrow." };
+    if (todays.some(r => r.stage === "shuffle")) return { done: true, title: `${name}, Step 2 done`, sub: "One shuffled round a day is enough. It locks in tomorrow." };
+    if (step1Passed(P.id)) return { done: false, title: `${name}, Step 2 (shuffled)`, sub: `~4 min | pack progress ${Math.round(100 * packProgress(P.id))}%`, left: N_CARDS, run: { mode: "pack", pack: P.id, stage: "shuffle" }, btn: `Learn pack, Step 2` };
+    if (todays.some(r => r.stage === "order")) return { done: true, title: `${name}, Step 1 done`, sub: `Not ${STEP1_PASS}/${N_CARDS} on the first try yet, so repeat Step 1 tomorrow. Read the cheat sheet once tonight.` };
+    return { done: false, title: `${name}, Step 1 (in order)`, sub: "~4 min | read the 📄 cheat sheet first, the method shows after every answer", left: N_CARDS, run: { mode: "pack", pack: P.id, stage: "order" }, btn: `Learn pack, Step 1` };
+  }
+
+  // ---------------- round ----------------
+  let pk = null, pkTimer = null;
+  function parseVal(raw) {
+    let s = String(raw).trim().toLowerCase().replace(/[,\s%_]/g, ""), mult = 1;
+    if (s.endsWith("bn")) { mult = 1e9; s = s.slice(0, -2); }
+    else if (s.endsWith("m")) { mult = 1e6; s = s.slice(0, -1); }
+    else if (s.endsWith("k")) { mult = 1e3; s = s.slice(0, -1); }
+    if (!/^\d+(\.\d+)?$/.test(s)) return null;
+    return parseFloat(s) * mult;
+  }
+  function start(packId, stage) {
+    if (pk) return;
+    const P = byId(packId || el("packSel").value) || PACKS[0];
+    stage = stage || (document.querySelector('input[name="packStage"]:checked') || {}).value || "order";
+    const order = [...Array(N_CARDS).keys()];
+    if (stage === "shuffle") order.sort(() => Math.random() - 0.5);
+    pk = { P, stage, queue: order.map(i => ({ i, retry: false })), seen: 0, right: 0, firstRight: 0, n: 0, times: [], locked: false, startedAt: Date.now() };
+    el("packIdle").style.display = "none"; el("packSummary").style.display = "none"; el("packPlay").style.display = "block";
+    next();
+  }
+  function next() {
+    if (!pk.queue.length) return finish(true);
+    pk.item = pk.queue.shift(); pk.card = pk.P.make(pk.item.i); pk.locked = false; pk.t0 = Date.now();
+    el("packProgress").textContent = `${pk.P.name.split(":")[0]} | ${pk.stage === "order" ? "Step 1" : "Step 2"} | ` + (pk.item.retry ? "second try" : `card ${pk.seen + 1} of ${N_CARDS}`);
+    el("packQ").innerHTML = pk.card.q;
+    el("packAnswer").value = ""; el("packAnswer").disabled = false; el("packAnswer").focus();
+    el("packResult").textContent = ""; el("packResult").className = "";
+    el("packExplain").style.display = "none"; el("packNextHint").style.display = "none";
+    clearInterval(pkTimer);
+    pkTimer = setInterval(() => { el("packTimer").textContent = ((Date.now() - pk.t0) / 1000).toFixed(1) + "s"; }, 100);
+  }
+  function check() {
+    if (!pk) return;
+    if (pk.locked) return next();
+    const v = parseVal(el("packAnswer").value);
+    if (v == null) { el("packResult").textContent = "Type a number"; el("packResult").className = "slow"; return; }
+    clearInterval(pkTimer);
+    const sec = (Date.now() - pk.t0) / 1000, c = pk.card, ok = Math.abs(v - c.ans) <= c.tol + 1e-9, onTime = sec <= pk.P.target;
+    pk.locked = true; el("packAnswer").disabled = true;
+    pk.times.push(sec); pk.n++;
+    if (ok) pk.right++;
+    if (!pk.item.retry) {
+      pk.seen++;
+      if (ok) pk.firstRight++;
+      if (pk.stage === "shuffle") updateCard(pk.P.id, pk.item.i, ok, onTime);
+      else if (ok) { const k = key(pk.P.id, pk.item.i), x = store.facts[k] || (store.facts[k] = { right: 0, wrong: 0, streak: 0 }); x.right++; }
+      if (!ok && pk.stage === "order") pk.queue.push({ i: pk.item.i, retry: true });   // Step 1: one more try at the end
+    }
+    el("packResult").textContent = ok
+      ? (pk.stage === "shuffle" && !onTime ? `✅ Right, but slow (${sec.toFixed(1)}s, aim under ${pk.P.target}s)` : `✅ Right | ${sec.toFixed(1)}s`)
+      : `❌ The answer is ${F(c.ans)}${c.unit}`;
+    el("packResult").className = ok ? (pk.stage === "shuffle" && !onTime ? "slow" : "ok") : "bad";
+    el("packExplain").innerHTML = c.how + `<br><b>You said:</b> ${el("packAnswer").value}`;
+    el("packExplain").style.display = "block"; el("packNextHint").style.display = "block";
+    saveStore();
+  }
+  function finish(complete) {
+    clearInterval(pkTimer);
+    el("packPlay").style.display = "none"; el("packIdle").style.display = "block";
+    if (!pk || pk.n === 0) { pk = null; return; }
+    const firstN = Math.min(pk.n, N_CARDS), avg = pk.times.reduce((a, b) => a + b, 0) / pk.times.length, d = data();
+    d.rounds.unshift({ date: new Date().toISOString(), pack: pk.P.id, stage: pk.stage, n: pk.n, right: pk.right, firstRight: pk.firstRight,
+                       avg: Math.round(avg * 10) / 10, dur: Math.round((Date.now() - pk.startedAt) / 1000), finished: !!complete });
+    d.rounds = d.rounds.slice(0, 60);
+    if (complete && pk.stage === "order") {
+      if (!d.step1[pk.P.id]) d.step1[pk.P.id] = dayKey(new Date());
+      if (pk.firstRight >= STEP1_PASS && !d.passed[pk.P.id]) d.passed[pk.P.id] = dayKey(new Date());
+    }
+    let extra = "";
+    if (pk.n >= 5) {
+      const rec = todayRec(), first = rec.rounds === 0;
+      rec.rounds++;
+      const xp = 5 * pk.right + 15; store.xp += xp;
+      extra = ` | <b>+${xp} XP</b>` + (first ? " | 🔥 today counts for your streak" : "");
+    }
+    addTodayQuestions(pk.n);
+    saveStore();
+    const prog = Math.round(100 * packProgress(pk.P.id));
+    let verdict;
+    if (pk.stage === "order") verdict = !complete ? "Round stopped early." : pk.firstRight >= STEP1_PASS ? `${pk.firstRight}/${N_CARDS} on the first try: Step 1 passed ✅. Next: Step 2 (shuffled, timed).` : `${pk.firstRight}/${N_CARDS} on the first try (need ${STEP1_PASS}): repeat Step 1 tomorrow.`;
+    else verdict = packKnown(pk.P.id) ? `🎉 ${pk.P.name} is known!` : `Pack progress: ${prog}%. Cards lock in when they're right and on time on two different days.`;
+    el("packSummary").innerHTML = `<div class="celebrate"><b>Round done:</b> ${pk.right}/${pk.n} right | average ${avg.toFixed(1)}s${extra}<br>${verdict}</div>`;
+    const nb = document.createElement("button");
+    nb.textContent = el("nextBtn").textContent.replace("▶ Start:", "▶ Next:");
+    nb.className = el("nextBtn").className;
+    nb.style.cssText = "width:100%;font-size:17px;padding:11px;margin-top:8px";
+    nb.onclick = () => { el("packSummary").style.display = "none"; el("nextBtn").onclick(); };
+    el("packSummary").appendChild(nb);
+    el("packSummary").style.display = "block";
+    pk = null;
+    renderPacks();
+    renderMotivation();
+  }
+
+  // ---------------- card UI ----------------
+  function sheet(P) {
+    let h = `<p><b>${P.name}</b><br>${P.rule}</p>`;
+    if (P.fixed) {
+      const icon = ["", "○", "✓", "✅"];
+      h += `<div class="sheetgrid">` + [...Array(N_CARDS).keys()].map(i => { const c = P.make(i); return `<div>${c.q.replace("?", "<b>" + F(c.ans) + "</b>")} ${icon[cardLevel(P.id, i)]}</div>`; }).join("") + `</div>`;
+    } else {
+      h += `<p class="hint">Example:</p>`;
+      const c = P.make(1);
+      h += `<div style="background:#f3f7f5;padding:8px 10px;border-radius:4px">${c.q}<br>${c.how}</div>`;
+    }
+    h += `<p class="hint">○ answered right | ✓ right and on time (under ${P.target}s) | ✅ mastered (on time on two different days). The pack is known at ${STEP1_PASS} of ${N_CARDS} cards ✅.</p>`;
+    return h;
+  }
+  function renderPacks() {
+    const sel = el("packSel"); if (!sel) return;
+    const cur = sel.value;
+    el("packList").innerHTML = PACKS.map((P, i) => {
+      const st = packStatus(i), pct = st === "known" ? 100 : st === "locked" ? 0 : Math.round(100 * packProgress(P.id));
+      const tag = st === "known" ? "✅ known" : st === "locked" ? (i === 0 ? "🔒 starts after ×50" : "🔒 after the previous pack") : st === "learning" ? `📘 ${pct}%` : "🆕 next";
+      return `<div style="margin:6px 0"><div style="display:flex;justify-content:space-between;gap:8px;font-size:14px"><b>${i + 1}. ${P.name.split(":")[0]}</b><span class="hint" style="margin:0">${tag}</span></div>` +
+        `<div class="bar" style="margin-top:3px"><div style="width:${pct}%;${st === "learning" ? "background:#8fc5a8" : ""}"></div></div></div>`;
+    }).join("");
+    sel.innerHTML = PACKS.map((P, i) => { const st = packStatus(i); return `<option value="${P.id}">${P.name} (${st === "locked" ? "locked, practice allowed" : st})</option>`; }).join("");
+    const ci = currentPack();
+    sel.value = cur && byId(cur) ? cur : PACKS[Math.max(0, ci)].id;
+    el("packSheet").innerHTML = sheet(byId(sel.value));
+  }
+
+  // ---------------- exports ----------------
+  window.packsAPI = {
+    PACKS, planTask, packQsToday, packProgress, packKnown, packStatus, currentPack, renderPacks,
+    rounds: () => data().rounds,
+    active: () => !!pk,
+    current: () => pk && pk.card,          // (used by the tests)
+    report: () => PACKS.map((P, i) => { const st = packStatus(i); return `${P.name.split(":")[0]} ${st === "known" ? "known" : st === "locked" ? "locked" : Math.round(100 * packProgress(P.id)) + "%"}`; }).join(", ")
+  };
+  window.packStart = (packId, stage) => {
+    if (pk) return;
+    if (packId) { el("packSel").value = packId; el("packSheet").innerHTML = sheet(byId(packId)); }
+    const r = document.querySelector(`input[name="packStage"][value="${stage || "order"}"]`); if (r) r.checked = true;
+    start(packId, stage);
+  };
+  window.addEventListener("load", () => {
+    renderPacks();
+    el("packSel").addEventListener("change", () => { el("packSheet").innerHTML = sheet(byId(el("packSel").value)); });
+    el("packStartBtn").addEventListener("click", () => start());
+    el("packCheckBtn").addEventListener("click", check);
+    el("packAnswer").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); check(); } });
+    document.addEventListener("keydown", e => { if (e.key === "Enter" && pk && pk.locked && e.target !== el("packAnswer")) { e.preventDefault(); check(); } });
+    el("packStopBtn").addEventListener("click", () => { if (pk) finish(false); });
   });
 })();
 </script>
@@ -1915,7 +2333,7 @@ window.onload = function () {
         trap: `${h} h ${m} min is <b>not</b> ${h}.${m} hours (that gives ${N(s * (h + m / 100), 1)}). Also: forgetting the minutes gives ${N(s * h)}.`,
         move: `Estimate first: ${s} × ${h + (m >= 30 ? 0.5 : 0)} ≈ ${N(s * (h + (m >= 30 ? 0.5 : 0)))} → only one option sits right next to that.` };
     },
-    // ② Time = distance ÷ speed (28.5 miles at 3.75 mph)
+    // ② Time = distance / speed (28.5 miles at 3.75 mph)
     walkTime() {
       const sp = pick([[3, 1], [3.5, 2], [3.75, 4], [4.5, 2], [7.5, 2], [6, 1], [5, 1], [2.5, 2]]);
       const s = sp[0], k = sp[1];
@@ -1924,7 +2342,7 @@ window.onload = function () {
       const dec = Math.round((mins / 60 - h) * 100);
       return { type: "Time from distance", q: `If you walk at a pace of ${N(s)} miles per hour, how long would it take to walk ${N(d)} miles?`,
         ans: A(h, mm), opts: options(A(h, mm), [dec < 60 && dec !== mm ? A(h, dec) : null, A(h, mm + 4), A(h, Math.max(0, mm - 6)), A(h, mm + 9)], i => A(h, (mm + 13 + i * 7) % 60)),
-        fast: `distance ÷ speed: ${N(d)} ÷ ${N(s)}` + (k > 1 ? ` → ×${k} both: ${N(d * k)} ÷ ${N(s * k)}` : "") + ` = <b>${N(mins / 60)} hours</b> → 0.${String(dec).padStart(2, "0")} h × 60 = <b>${mm} min</b>`,
+        fast: `distance / speed: ${N(d)} / ${N(s)}` + (k > 1 ? ` → ×${k} both: ${N(d * k)} / ${N(s * k)}` : "") + ` = <b>${N(mins / 60)} hours</b> → 0.${String(dec).padStart(2, "0")} h × 60 = <b>${mm} min</b>`,
         trap: `${N(mins / 60)} hours is <b>not</b> ${h} h ${dec} min: the decimal part is a share of 60 minutes, not 100.`,
         move: `All options start with ${h} hours, so only the minutes matter. Find the decimal (.${String(dec).padStart(2, "0")}) and × 60.` };
     },
@@ -1944,9 +2362,9 @@ window.onload = function () {
       const A = v => money(cur, Math.round(v));
       return { type: "% → total", q: `You pay ${money(cur, part)} as a down payment for a flat, which is ${p}% of the total price. How much does the flat cost?`,
         ans: A(W), opts: options(A(W), [A(W * 1.02 + 20000), A(part * 100 / (p + 2)), A(W + 150000), A(W - 160000)], i => A(W + (i + 2) * 50000)),
-        fast: `${p}% = ${money(cur, part)} → 1% = ${money(cur, part)} ÷ ${p} = ${money(cur, part / p)} → × 100 = <b>${A(W)}</b>`,
+        fast: `${p}% = ${money(cur, part)} → 1% = ${money(cur, part)} / ${p} = ${money(cur, part / p)} → × 100 = <b>${A(W)}</b>`,
         trap: `Close options differ by ~5%. Don't round 1% too early. Also watch the currency: the test mixes £ and € on purpose.`,
-        move: `100 ÷ ${p} ≈ ${N(100 / p, 1)}, so the price is about ${N(100 / p, 1)} × ${money(cur, part)} ≈ ${A(part * 100 / p)}. Pick the closest option, then confirm it.` };
+        move: `100 / ${p} ≈ ${N(100 / p, 1)}, so the price is about ${N(100 / p, 1)} × ${money(cur, part)} ≈ ${A(part * 100 / p)}. Pick the closest option, then confirm it.` };
     },
     // ⑤ Net after tax (earn 6,000, pay 35% tax)
     netTax() {
@@ -1964,9 +2382,9 @@ window.onload = function () {
       const A = v => money(cur, Math.round(v));
       return { type: "Fraction → original", q: `You buy a second-hand sailboat for ${A(part)}, which is ${a}/${b} of its original price. What did it cost new?`,
         ans: A(orig), opts: options(A(orig), [A(part * a / b), A(part * (1 + (b - a) / b)), A(orig + 2 * b * 500), A(orig - b * 1000)], i => A(orig + (i + 3) * 1500)),
-        fast: `${a}/${b} = ${A(part)} → 1/${b} = ${A(part)} ÷ ${a} = ${A(part / a)} → ${b}/${b} = × ${b} = <b>${A(orig)}</b>`,
+        fast: `${a}/${b} = ${A(part)} → 1/${b} = ${A(part)} / ${a} = ${A(part / a)} → ${b}/${b} = × ${b} = <b>${A(orig)}</b>`,
         trap: `Adding the missing ${b - a}/${b} <b>of the price you paid</b> gives ${A(part * (1 + (b - a) / b))}, which is wrong. The fraction is of the original, not of what you paid.`,
-        move: `Divide by the top number, multiply by the bottom one: ÷${a} × ${b}. Takes 5 seconds.` };
+        move: `Divide by the top number, multiply by the bottom one: divided by ${a}, then × ${b}. Takes 5 seconds.` };
     },
     // ⑦ Bulk purchase (3 paper clips cost 10p — cost of 105?)
     bulk() {
@@ -1974,7 +2392,7 @@ window.onload = function () {
       const item = pick(["paper clips", "pencils", "stamps", "screws"]), A = p => "£" + (p / 100).toFixed(2);
       return { type: "Bulk price", q: `If ${g} ${item} cost ${c}p, how much would it cost to buy ${qty} ${item}?`,
         ans: A(pence), opts: options(A(pence), [A(pence + 15), A(pence - 30), A(qty * c / (g + 1)), A(pence + 20)], i => A(pence + 5 * (i + 5))),
-        fast: `${qty} ÷ ${g} = ${k} groups → ${k} × ${c}p = ${pence}p = <b>${A(pence)}</b>`,
+        fast: `${qty} / ${g} = ${k} groups → ${k} × ${c}p = ${pence}p = <b>${A(pence)}</b>`,
         trap: `Don't multiply ${qty} × ${c}p (that's for 1 item at ${c}p). Prices are given per <b>group of ${g}</b>. And 100p = £1.`,
         move: `Options are close, so check the last digit: ${k} × ${c} ends in ${String(pence).slice(-1)}.` };
     },
@@ -1985,7 +2403,7 @@ window.onload = function () {
       const item = pick(["bags of coffee", "packs of gum", "boxes of tea", "bottles of oil"]);
       return { type: "Saving per unit", q: `${n} ${item} usually cost ${money(cur, u)}. You buy them on sale for ${money(cur, s)}. How much do you save per item?`,
         ans: A(a), opts: options(A(a), [A(u - s), A(s / n), A(a + 0.5), A(a - 0.5)], i => A(a + 1 + i * 0.25)),
-        fast: `Total saved = ${money(cur, u)} − ${money(cur, s)} = ${money(cur, u - s)} → ÷ ${n} = <b>${A(a)}</b>`,
+        fast: `Total saved = ${money(cur, u)} − ${money(cur, s)} = ${money(cur, u - s)} → divided by ${n} = <b>${A(a)}</b>`,
         trap: `${A(u - s)} is the saving on <b>all ${n}</b>, not per item. ${A(s / n)} is the sale price per item.`,
         move: `Subtract once, divide once. Never work out both unit prices.` };
     },
@@ -1995,7 +2413,7 @@ window.onload = function () {
       const tot = t * r * s, a = Math.ceil(tot / pack);
       return { type: "Packs needed", q: `Napkins are sold in packs of ${pack}. You need to set ${t} tables in ${r} rooms, with ${s} seats at each table. How many packs do you need?`,
         ans: String(a), opts: options(String(a), [String(Math.floor(tot / pack)) === String(a) ? null : String(Math.floor(tot / pack)), String(Math.ceil(t * s / pack)), String(a + 1), String(tot)], i => String(a + 2 + i)),
-        fast: `${t} × ${r} × ${s} = <b>${tot} seats</b> → ÷ ${pack} = ${N(tot / pack)} → round <b>up</b> = <b>${a}</b>`,
+        fast: `${t} × ${r} × ${s} = <b>${tot} seats</b> → divided by ${pack} = ${N(tot / pack)} → round <b>up</b> = <b>${a}</b>`,
         trap: tot % pack ? `${N(tot / pack)} packs isn't possible: you can't buy part of a pack, so round <b>up</b> (rounding down leaves people without napkins).` : `Don't forget the rooms: ${t} × ${s} only counts one room.`,
         move: `Multiply the two smallest numbers first (${Math.min(t, r, s)} × next), then the big one.` };
     },
@@ -2015,7 +2433,7 @@ window.onload = function () {
       const A = v => (v % 1 ? `${Math.floor(v)}½` : v) + " kg";
       return { type: "How much can you buy", q: `If 1,000 grams of vanilla cost ${money(cur, p)}, how much vanilla can you buy for ${money(cur, spend)}?`,
         ans: A(k), opts: options(A(k), [A(k + 1), A(k - 2), A(k + 3.5), A(k - 4.5)], i => A(k + 5 + i)),
-        fast: `1,000 g = 1 kg → ${money(cur, spend)} ÷ ${money(cur, p)} per kg = <b>${A(k)}</b>` + (p % 2 === 0 ? ` (halve both: ${N(spend / 2)} ÷ ${p / 2})` : ""),
+        fast: `1,000 g = 1 kg → ${money(cur, spend)} / ${money(cur, p)} per kg = <b>${A(k)}</b>` + (p % 2 === 0 ? ` (halve both: ${N(spend / 2)} / ${p / 2})` : ""),
         trap: `"1,000 grams" is just 1 kg, a distraction. The test also switches £/€ between question and options to unsettle you.`,
         move: `Multiply back: price × option must equal ${money(cur, spend)}. Test the middle option first.` };
     },
@@ -2026,7 +2444,7 @@ window.onload = function () {
       const hTxt = h2 === 0.5 ? "½ hour" : h2 + (h2 === 1 ? " hour" : " hours");
       return { type: "Work rate", q: `${n} children can build ${things} sandcastles in ${h} hours. How many children would it take to build the same number of sandcastles in ${hTxt}?`,
         ans: String(a), opts: options(String(a), [String(n * h), String(things), String(Math.round(n / h2 + h)), String(a + n)], i => String(a + 2 * (i + 1))),
-        fast: `Total work = ${n} children × ${h} h = <b>${n * h} child-hours</b> → ÷ ${hTxt} = <b>${a}</b>`,
+        fast: `Total work = ${n} children × ${h} h = <b>${n * h} child-hours</b> → divided by ${hTxt} = <b>${a}</b>`,
         trap: `The ${things} sandcastles don't matter: it's the same job. ${n * h} is the child-hours, not the number of children.`,
         move: `Less time → more children. The answer must be bigger than ${n * h} when the new time is under 1 hour.` };
     },
@@ -2036,7 +2454,7 @@ window.onload = function () {
       const A = v => money(cur, v), [x, y] = pick([["a flower", "a vase"], ["a pen", "a notebook"], ["a ball", "a bat"]]);
       return { type: "Sum & difference trap", q: `${x[0].toUpperCase() + x.slice(1)} and ${y} cost ${A(tot)} together. The ${y.split(" ")[1]} costs ${A(d)} more than the ${x.split(" ")[1]}. How much does the ${x.split(" ")[1]} cost?`,
         ans: A(small), opts: options(A(small), [A(tot - d), A(d), A(tot), A(tot + d)], i => A(small * 3 + i)),
-        fast: `Take away the difference, then split in two: (${A(tot)} − ${A(d)}) ÷ 2 = <b>${A(small)}</b>`,
+        fast: `Take away the difference, then split in two: (${A(tot)} − ${A(d)}) / 2 = <b>${A(small)}</b>`,
         trap: `The famous wrong answer is ${A(tot - d)}. Then the other item would cost ${A(tot - d + d)} and together ${A(tot - d + tot)}, too much.`,
         move: `Always check: small + (small + ${A(d)}) = ${A(tot)}? Two seconds, and it saves the point.` };
     },
@@ -2050,7 +2468,7 @@ window.onload = function () {
         trap: `The options differ in just one digit (10,000 or 100 apart). Carry errors are the trap here, so check the last 3 digits.`,
         move: `Look only at the last digits first: ${a % 10} + ? ends in ${b % 10} → the answer ends in ${x % 10}. That alone often leaves 2 options.` };
     },
-    // ⑮ Fraction division (½ ÷ 5/7)
+    // ⑮ Fraction division (½ / 5/7)
     fracDiv() {
       const gcd = (p, q) => q ? gcd(q, p % q) : p, sf = (p, q) => { const g = gcd(p, q); return `${p / g}/${q / g}`; };
       const [a, b] = pick([[1, 2], [1, 3], [2, 3], [3, 4], [1, 4]]), [c, d] = pick([[5, 7], [3, 5], [2, 9], [4, 5], [5, 6]]);
@@ -2100,7 +2518,7 @@ window.onload = function () {
   function next() {
     if (tg.i >= ROUND_LEN) return finish();
     tg.key = tg.keys[tg.i]; tg.q = T[tg.key](); tg.locked = false; tg.t0 = Date.now();
-    el("testProgress").textContent = `Question ${tg.i + 1} of ${ROUND_LEN} · ${tg.right} right`;
+    el("testProgress").textContent = `Question ${tg.i + 1} of ${ROUND_LEN} | ${tg.right} right`;
     el("testType").textContent = tg.q.type;
     el("testQ").innerHTML = tg.q.q;
     el("testOpts").innerHTML = tg.q.opts.map((o, i) => `<button class="opt" data-o="${i}"><span class="k">${"ABCDE"[i]}</span> ${o}</button>`).join("");
@@ -2122,7 +2540,7 @@ window.onload = function () {
       if (q.opts[i] === q.ans) b.classList.add("correct");
       else if (i === idx) b.classList.add("wrong");
     });
-    el("testResult").textContent = ok ? `✅ Right · ${sec.toFixed(1)}s` + (slow ? ` (test pace is ~${PACE}s)` : "") : `❌ The answer is ${q.ans}`;
+    el("testResult").textContent = ok ? `✅ Right | ${sec.toFixed(1)}s` + (slow ? ` (test pace is ~${PACE}s)` : "") : `❌ The answer is ${q.ans}`;
     el("testResult").className = ok ? (slow ? "slow" : "ok") : "bad";
     el("testExplain").innerHTML = `<b>⚡ Fast way:</b> ${q.fast}<br><b>🪤 The trap:</b> ${q.trap}<br><b>⏱ 20-second move:</b> ${q.move}`;
     el("testExplain").style.display = "block";
@@ -2144,12 +2562,12 @@ window.onload = function () {
       const rec = todayRec(), first = rec.rounds === 0;
       rec.rounds++;
       const xp = 5 * tg.right + 15; store.xp += xp;
-      extra = ` · <b>+${xp} XP</b>` + (first ? " · 🔥 today counts for your streak" : "");
+      extra = ` | <b>+${xp} XP</b>` + (first ? " | 🔥 today counts for your streak" : "");
     }
     addTodayQuestions(n);
     saveStore();
     renderMotivation();
-    el("testSummary").innerHTML = `<div class="celebrate"><b>Round done:</b> ${tg.right}/${n} right · average ${avg.toFixed(1)}s` +
+    el("testSummary").innerHTML = `<div class="celebrate"><b>Round done:</b> ${tg.right}/${n} right | average ${avg.toFixed(1)}s` +
       (tg.right >= n * 0.8 && avg <= PACE ? " — test-ready pace 🎯" : ` — goal: 8/10 right at ~${PACE}s each`) + extra + `</div>`;
     const nb = document.createElement("button");
     nb.textContent = el("nextBtn").textContent.replace("▶ Start:", "▶ Next:");
@@ -2201,7 +2619,8 @@ function buildReport() {
     ["Learn tables", store.sessions.filter(x => x.mode === "learn").map(x => ({ date: x.date, n: x.n, right: Math.round(x.n * (x.acc || 0) / 100), avg: x.avg, dur: x.dur }))],
     ["Percentages", (store.pct && store.pct.rounds) || []],
     ["Online test", (store.test && store.test.rounds) || []],
-    ["Exhibit sums", (store.sums && store.sums.rounds) || []]
+    ["Exhibit sums", (store.sums && store.sums.rounds) || []],
+    ["Learn packs", (store.packs && store.packs.rounds) || []]
   ];
   // Real practice time today: sum of every round's duration, plus the first-to-last window
   const todayRounds = zoneRows.flatMap(([, rounds]) => rounds.filter(isToday).map(r => ({ end: new Date(r.date).getTime(), dur: r.dur != null ? r.dur : Math.round((r.n || 0) * (r.avg || 0)) })));
@@ -2226,6 +2645,7 @@ function buildReport() {
     L.push(`  ${z.name}: ${t.toFixed(1)}s (target ${z.target}s), ${Math.round(acc)}% right (goal ${z.accGoal}%)`);
   });
   L.push("Tables: " + allFactorValues().map(f => `x${f} ${tableStatus(f) === "known" ? "known" : Math.round(100 * tableProgress(f)) + "%"}`).join(", "));
+  if (window.packsAPI) L.push("Learn packs: " + window.packsAPI.report());
   const weak = Object.values(store.weak).sort((a, b) => weakWeight(b) - weakWeight(a));
   L.push(`Weak spots notebook: ${weak.length}` + (weak.length ? " (top: " + weak.slice(0, 5).map(w => `${w.f}x${w.n}`).join(", ") + ")" : ""));
   const days = [];
@@ -2275,7 +2695,7 @@ document.getElementById("reportBtn").onclick = () => syncReport(true);
 // =====================================================================
 const IS_TOUCH = (() => { try { return matchMedia("(pointer: coarse)").matches || "ontouchstart" in window; } catch (e) { return false; } })();
 function anyRoundActive() {
-  return ["play", "sumsPlay", "pctPlay", "testPlay"].some(id => { const e = document.getElementById(id); return e && e.style.display !== "none" && getComputedStyle(e).display !== "none"; });
+  return ["play", "sumsPlay", "pctPlay", "testPlay", "packPlay"].some(id => { const e = document.getElementById(id); return e && e.style.display !== "none" && getComputedStyle(e).display !== "none"; });
 }
 (function () {
   if (!IS_TOUCH) return;
@@ -2283,7 +2703,8 @@ function anyRoundActive() {
   const pads = [
     { input: "answer",     enter: () => submit(),                                        units: "unitBtns" },
     { input: "sumsAnswer", enter: () => document.getElementById("sumsCheckBtn").click(), units: ["k"] },
-    { input: "pctAnswer",  enter: () => document.getElementById("pctCheckBtn").click(),  units: null }
+    { input: "pctAnswer",  enter: () => document.getElementById("pctCheckBtn").click(),  units: null },
+    { input: "packAnswer", enter: () => document.getElementById("packCheckBtn").click(), units: ["k", "m"] }
   ];
   function build(cfg) {
     const input = document.getElementById(cfg.input);
@@ -2390,6 +2811,8 @@ function anyRoundActive() {
       const x = a[z] || {}, y = b[z] || {};
       m[z] = { rounds: unionList(x.rounds, y.rounds, 60), mistakes: unionList(x.mistakes, y.mistakes, 30) };
     }
+    const pa = a.packs || {}, pb = b.packs || {};
+    m.packs = { rounds: unionList(pa.rounds, pb.rounds, 60), step1: truthyUnion(pa.step1, pb.step1), passed: truthyUnion(pa.passed, pb.passed) };
     const ta = a.test || {}, tb = b.test || {};
     m.test = { rounds: unionList(ta.rounds, tb.rounds, 60), byType: {} };
     for (const k of new Set([...Object.keys(ta.byType || {}), ...Object.keys(tb.byType || {})])) {
@@ -2398,7 +2821,7 @@ function anyRoundActive() {
     }
     const dk = iso => dayKey(new Date(iso)), qn = {}, rn = {};
     const add = (list, counts) => (list || []).forEach(r => { const k = dk(r.date); if (counts) qn[k] = (qn[k] || 0) + (r.n || 0); rn[k] = (rn[k] || 0) + ((r.n || 0) >= 5 ? 1 : 0); });
-    add(m.sessions, true); add(m.pct.rounds, true); add(m.test.rounds, true); add(m.sums.rounds, false);
+    add(m.sessions, true); add(m.pct.rounds, true); add(m.test.rounds, true); add(m.sums.rounds, false); add(m.packs.rounds, true);
     for (const k in qn) { const d = m.days[k] || (m.days[k] = { q: 0, rounds: 0 }); d.q = Math.max(d.q, qn[k]); }
     for (const k in rn) { const d = m.days[k] || (m.days[k] = { q: 0, rounds: 0 }); d.rounds = Math.max(d.rounds, rn[k]); }
     m.updatedAt = Math.max(a.updatedAt || 0, b.updatedAt || 0);
@@ -2408,7 +2831,7 @@ function anyRoundActive() {
 
   // canonical text, so "did anything change?" ignores key order
   const canon = o => JSON.stringify(o, (k, v) => v && typeof v === "object" && !Array.isArray(v) ? Object.keys(v).sort().reduce((r, kk) => (r[kk] = v[kk], r), {}) : v);
-  const roundActive = () => ["play", "sumsPlay", "pctPlay", "testPlay"].some(id => { const e = document.getElementById(id); return e && e.style.display !== "none"; });
+  const roundActive = () => ["play", "sumsPlay", "pctPlay", "testPlay", "packPlay"].some(id => { const e = document.getElementById(id); return e && e.style.display !== "none"; });
   const writeLocal = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) {} };
 
   function status(txt) {
@@ -2452,7 +2875,7 @@ function anyRoundActive() {
       const changed = absorb(j.doc, j.ver);
       busy = false;
       if (changed || !j.doc || dirty()) push();  // send back the merged copy, the first copy, or progress made offline
-      else status(`☁️ Synced at ${time()} · this device is up to date`);
+      else status(`☁️ Synced at ${time()} | this device is up to date`);
     } catch (e) {
       busy = false;
       status(`⚠️ Offline or sync unavailable (${String(e.message || e).slice(0, 50)}). Your progress is safe on this device and will sync later.`);
@@ -2482,7 +2905,7 @@ function anyRoundActive() {
       ls.set(VER_KEY, String(j.ver));
       ls.del(DIRTY_KEY);
       busy = false;
-      status(`☁️ Synced at ${time()} · your laptop and iPhone share the same progress`);
+      status(`☁️ Synced at ${time()} | your laptop and iPhone share the same progress`);
     } catch (e) {
       busy = false;
       status(`⚠️ Not synced yet (${String(e.message || e).slice(0, 50)}). Your progress is safe on this device and will sync when you're online.`);
